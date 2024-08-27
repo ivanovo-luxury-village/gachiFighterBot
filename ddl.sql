@@ -1,4 +1,4 @@
--- Удаление таблиц, если они существуют, для обновления структуры
+/* удаление таблиц, если они существуют, для обновления структуры */
 DROP TABLE IF EXISTS users CASCADE;
 DROP TABLE IF EXISTS fighter_of_the_day CASCADE;
 DROP TABLE IF EXISTS statistics CASCADE;
@@ -7,7 +7,7 @@ DROP TABLE IF EXISTS user_balance CASCADE;
 DROP TABLE IF EXISTS battle_history CASCADE;
 DROP TABLE IF EXISTS duel_state CASCADE;
 
--- Создание таблицы users для хранения информации о пользователях
+/* создание таблицы users для хранения информации о пользователях */
 CREATE TABLE users (
     id BIGSERIAL PRIMARY KEY,
     telegram_id BIGINT UNIQUE NOT NULL,
@@ -15,8 +15,8 @@ CREATE TABLE users (
     registered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Создание таблицы fighter_of_the_day для хранения информации о выборе бойца дня
-CREATE TABLE fighter_of_the_day (
+/* создание таблицы pidor_of_the_day для хранения информации о выборе пидора дня */
+CREATE TABLE pidor_of_the_day (
     id BIGSERIAL PRIMARY KEY,
     user_id BIGINT NOT NULL,
     chosen_at DATE NOT NULL,
@@ -24,7 +24,7 @@ CREATE TABLE fighter_of_the_day (
     FOREIGN KEY (user_id) REFERENCES users (id)
 );
 
--- Создание таблицы statistics для хранения статистики выборов бойцов по годам
+/* создание таблицы statistics для хранения статистики выборов пидоров дня по годам */
 CREATE TABLE statistics (
     id BIGSERIAL PRIMARY KEY,
     user_id BIGINT NOT NULL,
@@ -34,7 +34,7 @@ CREATE TABLE statistics (
     CONSTRAINT unique_user_year UNIQUE (user_id, chosen_year)
 );
 
--- Создание таблицы messages для хранения текстов сообщений
+/* создание таблицы messages для хранения текстов сообщений */
 CREATE TABLE messages (
     id BIGSERIAL PRIMARY KEY,
     message_text TEXT NOT NULL,
@@ -43,15 +43,15 @@ CREATE TABLE messages (
     scenario_id INT NOT NULL
 );
 
--- Создание таблицы для хранения баланса очков пользователей
+/* создание таблицы для хранения баланса semen пользователей */
 CREATE TABLE user_balance (
     user_id BIGINT PRIMARY KEY,
     points INT DEFAULT 500,
     FOREIGN KEY (user_id) REFERENCES users (id)
 );
 
--- Создание таблицы для хранения истории боев
-CREATE TABLE battle_history (
+/* создание таблицы для хранения истории боев */
+CREATE TABLE fight_history (
     id BIGSERIAL PRIMARY KEY,
     winner_id BIGINT NOT NULL,
     loser_id BIGINT NOT NULL,
@@ -62,7 +62,7 @@ CREATE TABLE battle_history (
     FOREIGN KEY (loser_id) REFERENCES users (id)
 );
 
--- Создание таблицы для хранения состояния дуэлей
+/* создание таблицы для хранения состояния схваток */
 CREATE TABLE duel_state (
     id BIGSERIAL PRIMARY KEY,
     challenger_id BIGINT NOT NULL,

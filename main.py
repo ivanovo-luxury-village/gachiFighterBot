@@ -8,7 +8,6 @@ from datetime import datetime, timedelta
 import random
 import asyncio
 import creds
-import pytz
 
 # токен вашего бота
 API_TOKEN = creds.TOKEN
@@ -53,13 +52,13 @@ async def register_user(message: types.Message):
             await message.reply('Вы успешно зарегистрированы!')
 
 # выбор бойца дня
-async def choose_fighter_of_the_day(message: types.Message):
+async def choose_pidor_of_the_day(message: types.Message):
     today = datetime.utcnow().date()
     current_year = today.year
 
     pool = await create_db_pool()
     async with pool.acquire() as connection:
-        fighter_today = await connection.fetchrow('SELECT user_id FROM fighter_of_the_day WHERE chosen_at = $1', today)
+        fighter_today = await connection.fetchrow('SELECT user_id FROM pidor_of_the_day WHERE chosen_at = $1', today)
 
         if fighter_today:
             user = await connection.fetchrow('SELECT username FROM users WHERE id = $1', fighter_today['user_id'])
@@ -71,7 +70,7 @@ async def choose_fighter_of_the_day(message: types.Message):
                 return
 
             chosen_user = random.choice(users)
-            await connection.execute('INSERT INTO fighter_of_the_day (user_id, chosen_at, chosen_year) VALUES ($1, $2, $3)', chosen_user['id'], today, current_year)
+            await connection.execute('INSERT INTO pidor_of_the_day (user_id, chosen_at, chosen_year) VALUES ($1, $2, $3)', chosen_user['id'], today, current_year)
             await connection.execute('INSERT INTO statistics (user_id, chosen_count, chosen_year) VALUES ($1, 1, $2) ON CONFLICT (user_id, chosen_year) DO UPDATE SET chosen_count = statistics.chosen_count + 1', chosen_user['id'], current_year)
 
             scenario_id = await connection.fetchval('SELECT scenario_id FROM (SELECT DISTINCT scenario_id FROM messages WHERE message_type = $1) AS subquery ORDER BY random() LIMIT 1', 'INIT')
@@ -218,7 +217,7 @@ async def accept_duel_command(message: types.Message):
 
             await connection.execute('UPDATE user_balance SET points = points + $1 WHERE user_id = $2', points, winner_id)
             await connection.execute('UPDATE user_balance SET points = points - $1 WHERE user_id = $2', points, loser_id)
-            await connection.execute('INSERT INTO battle_history (winner_id, loser_id, points_won, points_lost) VALUES ($1, $2, $3, $3)', winner_id, loser_id, points)
+            await connection.execute('INSERT INTO fight_history (winner_id, loser_id, points_won, points_lost) VALUES ($1, $2, $3, $3)', winner_id, loser_id, points)
             await connection.execute('DELETE FROM duel_state WHERE challenger_id = $1 AND challenged_id = $2', duel_info['challenger_id'], duel_info['challenged_id'])
 
             winner_name = await connection.fetchval('SELECT username FROM users WHERE id = $1', winner_id)
@@ -261,13 +260,13 @@ async def show_fight_stats(message: types.Message):
             '''
             SELECT 
                 users.username
-                , COUNT(CASE WHEN battle_history.winner_id = users.id THEN 1 END) AS wins
-                , COUNT(CASE WHEN battle_history.loser_id = users.id THEN 1 END) AS losses
+                , COUNT(CASE WHEN fight_history.winner_id = users.id THEN 1 END) AS wins
+                , COUNT(CASE WHEN fight_history.loser_id = users.id THEN 1 END) AS losses
                 , COALESCE(user_balance.points, 0) AS current_balance
             FROM users
-            LEFT JOIN battle_history 
-                ON users.id = battle_history.winner_id 
-                    OR users.id = battle_history.loser_id
+            LEFT JOIN fight_history 
+                ON users.id = fight.winner_id 
+                    OR users.id = fight.loser_id
             LEFT JOIN user_balance 
                 ON users.id = user_balance.user_id
             GROUP BY users.username, user_balance.points
@@ -296,7 +295,7 @@ async def main():
     ])
 
     dp.message.register(register_user, Command(commands=["register"]))
-    dp.message.register(choose_fighter_of_the_day, Command(commands=["start"]))
+    dp.message.register(choose_pidor_of_the_day, Command(commands=["start"]))
     dp.message.register(rating, Command(commands=["rating"]))
     dp.message.register(duel_command, Command(commands=["duel"]))
     dp.message.register(accept_duel_command, Command(commands=["accept"]))
