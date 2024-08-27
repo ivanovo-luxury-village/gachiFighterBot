@@ -178,7 +178,7 @@ async def accept_duel_command(message: types.Message):
             )
 
             if not all_duels:
-                await message.reply('Нет активных боев для принятия.')
+                await message.reply('У вас нет активных боев для принятия.')
                 return
 
             # выбор дуэлей с учетом временной зоны
@@ -191,7 +191,7 @@ async def accept_duel_command(message: types.Message):
                 await message.reply('Нет активных боев для принятия.')
                 return
 
-            await message.reply('Схватка началась!')
+            await message.reply('Борьба началась!')
 
             # отправка первой GIF-изображения
             gif_files = [
