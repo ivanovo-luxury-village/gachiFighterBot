@@ -65,7 +65,7 @@ async def choose_pidor_of_the_day(message: types.Message):
 
         if fighter_today:
             user = await connection.fetchrow('SELECT username FROM users WHERE id = $1', fighter_today['user_id'])
-            await message.reply(f'Пидор дня: @{user["username"]}')
+            await message.reply(f'Согласно моей информации, по результатам сегодняшнего розыгрыша пидор дня: @{user["username"]}')
         else:
             users = await connection.fetch('SELECT id, username FROM users')
             if not users:
@@ -81,7 +81,12 @@ async def choose_pidor_of_the_day(message: types.Message):
             message_texts = [record['message_text'] for record in messages]
             await send_messages_with_delay(message.chat.id, message_texts, 1.5)
 
-            await message.reply(f"Итак, пидор дня @{chosen_user['username']}!")
+            # выбор случайного сообщения типа RESULT и вставка имени пользователя
+            result_message_template = await connection.fetchval(
+                'SELECT message_text FROM messages WHERE message_type = $1 ORDER BY random() LIMIT 1', 'RESULT'
+            )
+            result_message = result_message_template.replace('{username}', f'@{chosen_user["username"]}')
+            await message.reply(result_message)
 
 # функция отвечающая за дуэли
 async def duel_command(message: types.Message):
