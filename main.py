@@ -7,17 +7,20 @@ from aiogram.filters import Command
 from datetime import datetime, timedelta
 import random
 import asyncio
-import creds
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
 
 # токен для бота
-API_TOKEN = creds.TOKEN
+API_TOKEN = os.getenv('TOKEN')
 
 # настройки подключения к базе данных
-DB_HOST = creds.DB_HOST
-DB_USER = creds.DB_USER
-DB_PASSWORD = creds.DB_PASSWORD
-DB_NAME = creds.DB_NAME
-DB_PORT = creds.DB_PORT
+DB_HOST = os.getenv('DB_HOST')
+DB_USER = os.getenv('DB_USER')
+DB_PASSWORD = os.getenv('DB_PASSWORD')
+DB_NAME = os.getenv('DB_NAME')
+DB_PORT = os.getenv('DB_PORT')
 
 # инициализация бота и диспетчера
 logging.basicConfig(level=logging.INFO)
