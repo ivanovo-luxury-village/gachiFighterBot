@@ -23,10 +23,13 @@ DB_PORT = creds.DB_PORT
 logging.basicConfig(level=logging.INFO)
 bot = Bot(token=API_TOKEN)
 dp = Dispatcher()
+pool = None
 
 # функция для подключения к базе данных
 async def create_db_pool():
-    return await asyncpg.create_pool(user=DB_USER, password=DB_PASSWORD, database=DB_NAME, host=DB_HOST, port=DB_PORT)
+    global pool
+    if pool is None:
+        pool = await asyncpg.create_pool(user=DB_USER, password=DB_PASSWORD, database=DB_NAME, host=DB_HOST, port=DB_PORT)
 
 # функция для отправки сообщений с задержкой
 async def send_messages_with_delay(chat_id: int, messages: list, delay: float):
@@ -39,7 +42,7 @@ async def register_user(message: types.Message):
     user_id = message.from_user.id
     username = message.from_user.username
 
-    pool = await create_db_pool()
+    await create_db_pool()
     async with pool.acquire() as connection:
         existing_user = await connection.fetchval('SELECT id FROM users WHERE telegram_id = $1', user_id)
         if existing_user:
@@ -56,7 +59,7 @@ async def choose_pidor_of_the_day(message: types.Message):
     today = datetime.utcnow().date()
     current_year = today.year
 
-    pool = await create_db_pool()
+    await create_db_pool()
     async with pool.acquire() as connection:
         fighter_today = await connection.fetchrow('SELECT user_id FROM pidor_of_the_day WHERE chosen_at = $1', today)
 
@@ -82,7 +85,7 @@ async def choose_pidor_of_the_day(message: types.Message):
 
 # функция отвечающая за дуэли
 async def duel_command(message: types.Message):
-    pool = await create_db_pool()
+    await create_db_pool()
     async with pool.acquire() as connection:
         try:
             # проверка, зарегистрирован ли пользователь, вызвавший команду
@@ -152,7 +155,7 @@ async def duel_command(message: types.Message):
             await message.reply('Произошла ошибка при создании дуэли. Попробуйте еще раз.')
 
 async def accept_duel_command(message: types.Message):
-    pool = await create_db_pool()
+    await create_db_pool()
     async with pool.acquire() as connection:
         try:
             # получаем внутренний ID пользователя из таблицы users
@@ -229,7 +232,7 @@ async def accept_duel_command(message: types.Message):
 
 # вывод статистики
 async def rating(message: types.Message):
-    pool = await create_db_pool()
+    await create_db_pool()
     current_year = datetime.utcnow().year
 
     async with pool.acquire() as connection:
@@ -253,7 +256,7 @@ async def rating(message: types.Message):
             await message.reply(stats_message)
 
 async def show_fight_stats(message: types.Message):
-    pool = await create_db_pool()
+    await create_db_pool()
     
     async with pool.acquire() as connection:
         stats = await connection.fetch(
