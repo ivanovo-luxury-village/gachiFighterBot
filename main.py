@@ -268,8 +268,8 @@ async def show_fight_stats(message: types.Message):
                 , COALESCE(user_balance.points, 0) AS current_balance
             FROM users
             LEFT JOIN fight_history 
-                ON users.id = fight.winner_id 
-                    OR users.id = fight.loser_id
+                ON users.id = fight_history.winner_id 
+                    OR users.id = fight_history.loser_id
             LEFT JOIN user_balance 
                 ON users.id = user_balance.user_id
             GROUP BY users.username, user_balance.points
