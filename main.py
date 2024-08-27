@@ -9,7 +9,7 @@ import random
 import asyncio
 import creds
 
-# токен вашего бота
+# токен для бота
 API_TOKEN = creds.TOKEN
 
 # настройки подключения к базе данных
@@ -51,7 +51,7 @@ async def register_user(message: types.Message):
             await connection.execute('INSERT INTO user_balance (user_id, points) VALUES ($1, 500)', new_user_id)
             await message.reply('Вы успешно зарегистрированы!')
 
-# выбор бойца дня
+# выбор пидора дня
 async def choose_pidor_of_the_day(message: types.Message):
     today = datetime.utcnow().date()
     current_year = today.year
@@ -62,7 +62,7 @@ async def choose_pidor_of_the_day(message: types.Message):
 
         if fighter_today:
             user = await connection.fetchrow('SELECT username FROM users WHERE id = $1', fighter_today['user_id'])
-            await message.reply(f'Боец дня: @{user["username"]}')
+            await message.reply(f'Пидор дня: @{user["username"]}')
         else:
             users = await connection.fetch('SELECT id, username FROM users')
             if not users:
@@ -78,26 +78,26 @@ async def choose_pidor_of_the_day(message: types.Message):
             message_texts = [record['message_text'] for record in messages]
             await send_messages_with_delay(message.chat.id, message_texts, 1.5)
 
-            await message.reply(f"Итак, боец дня @{chosen_user['username']}!")
+            await message.reply(f"Итак, пидор дня @{chosen_user['username']}!")
 
 # функция отвечающая за дуэли
 async def duel_command(message: types.Message):
     pool = await create_db_pool()
     async with pool.acquire() as connection:
         try:
-            # Проверка, зарегистрирован ли пользователь, вызвавший команду
+            # проверка, зарегистрирован ли пользователь, вызвавший команду
             challenger_id = await connection.fetchval(
                 'SELECT id FROM users WHERE telegram_id = $1', message.from_user.id)
             logging.info(f'Challenger ID: {challenger_id}')
             
             if not challenger_id:
-                await message.reply('Вы не зарегистрированы в игре. Пожалуйста, используйте команду /register, чтобы зарегистрироваться.')
+                await message.reply('Вы не зарегистрированы. Пожалуйста, используйте команду /register, чтобы зарегистрироваться.')
                 return
 
             challenged_id = None
             mentioned_username = None
             
-            # Проверка, если команда содержит упоминание другого пользователя
+            # проверка, если команда содержит упоминание другого пользователя
             if len(message.text.split()) > 1:
                 mentioned_username = message.text.split()[1].strip('@')
                 challenged_id = await connection.fetchval(
@@ -108,7 +108,7 @@ async def duel_command(message: types.Message):
                     await message.reply(f'Пользователь @{mentioned_username} не зарегистрирован в игре.')
                     return
 
-            # Проверка на наличие ответного сообщения (старый метод)
+            # проверка на наличие ответного сообщения
             elif message.reply_to_message:
                 logging.info('Reply to message found.')
                 challenged_id = await connection.fetchval(
@@ -121,19 +121,19 @@ async def duel_command(message: types.Message):
                     return
             
             else:
-                await message.reply('Чтобы вызвать кого-то на дуэль, вы должны упомянуть его @username или ответить на сообщение этого пользователя.')
+                await message.reply('Чтобы вызвать кого-то на бой, вы должны упомянуть его @username или ответить на сообщение этого пользователя.')
                 logging.info('No mention or reply to message found.')
                 return
             
-            # Проверка, чтобы пользователь не мог вызвать сам себя на дуэль
+            # проверка, чтобы пользователь не мог вызвать сам себя на дуэль
             if challenger_id == challenged_id:
-                await message.reply('Вы не можете вызвать на дуэль самого себя.')
+                await message.reply('Вы не можете вызвать на бой самого себя.')
                 return
 
             if mentioned_username:
-                await message.reply(f'@{mentioned_username}, вас вызвали на дуэль! Примете вызов? (/accept)')
+                await message.reply(f'@{mentioned_username}, вас вызвали побороться! Примете вызов? (/accept)')
             else:
-                await message.reply(f'@{message.reply_to_message.from_user.username}, вас вызвали на дуэль! Примете вызов? (/accept)')
+                await message.reply(f'@{message.reply_to_message.from_user.username}, вас вызвали на бой! Примете вызов? (/accept)')
 
             # Логика для отслеживания состояния дуэли
             result = await connection.execute(
@@ -175,7 +175,7 @@ async def accept_duel_command(message: types.Message):
             )
 
             if not all_duels:
-                await message.reply('Нет активных дуэлей для принятия.')
+                await message.reply('Нет активных боев для принятия.')
                 return
 
             # выбор дуэлей с учетом временной зоны
@@ -185,12 +185,12 @@ async def accept_duel_command(message: types.Message):
             )
 
             if not duel_info:
-                await message.reply('Нет активных дуэлей для принятия.')
+                await message.reply('Нет активных боев для принятия.')
                 return
 
-            await message.reply('Дуэль началась!')
+            await message.reply('Схватка началась!')
 
-            # Отправка первой GIF-изображения
+            # отправка первой GIF-изображения
             gif_files = [
                 'gifs/gif4.gif', 
                 'gifs/optimized_gif2.gif', 
@@ -199,15 +199,15 @@ async def accept_duel_command(message: types.Message):
             first_gif = FSInputFile(gif_files[0])
             sent_message = await bot.send_animation(message.chat.id, first_gif)
 
-            # Задержка и смена GIF-изображений
+            # задержка и смена GIF-изображений
             for gif in gif_files[1:]:
                 await asyncio.sleep(2)
                 new_gif = FSInputFile(gif)
-                media = InputMediaAnimation(media=new_gif)  # Передача объекта файла как параметра media
+                media = InputMediaAnimation(media=new_gif)  # передача объекта файла как параметра media
                 await bot.edit_message_media(media=media, chat_id=message.chat.id, message_id=sent_message.message_id)
 
-            # Удаление сообщения с GIF-картинкой
-            await asyncio.sleep(2)  # Задержка перед удалением
+            # удаление сообщения с GIF-картинкой
+            await asyncio.sleep(2)  # задержка перед удалением
             await bot.delete_message(chat_id=message.chat.id, message_id=sent_message.message_id)
 
             # рандомный выбор победителя и обновление баланса
@@ -221,7 +221,7 @@ async def accept_duel_command(message: types.Message):
             await connection.execute('DELETE FROM duel_state WHERE challenger_id = $1 AND challenged_id = $2', duel_info['challenger_id'], duel_info['challenged_id'])
 
             winner_name = await connection.fetchval('SELECT username FROM users WHERE id = $1', winner_id)
-            await message.reply(f'Победитель дуэли: @{winner_name}. Выиграно {points} очков!')
+            await message.reply(f'Победитель дуэли: @{winner_name}. Выиграно {points} ♂️semen!')
 
         except Exception as e:
             logging.error(f'Error in accept_duel_command: {e}')
@@ -236,11 +236,11 @@ async def rating(message: types.Message):
         stats = await connection.fetch(
             '''
             SELECT 
-                users.username, 
-                COALESCE(statistics.chosen_count, 0) AS chosen_count
+                users.username
+                , COALESCE(statistics.chosen_count, 0) AS chosen_count
             FROM users
             LEFT JOIN statistics 
-            ON users.id = statistics.user_id AND statistics.chosen_year = $1
+                ON users.id = statistics.user_id AND statistics.chosen_year = $1
             ORDER BY chosen_count DESC
             ''', current_year
         )
@@ -248,7 +248,7 @@ async def rating(message: types.Message):
         if not stats:
             await message.reply('Статистика пока пуста.')
         else:
-            stats_message = f"Рейтинг бойцов (данные актуальны на {current_year} год):\n" + \
+            stats_message = f"Рейтинг пидоров (данные актуальны на {current_year} год):\n" + \
                             "\n".join([f"@{stat['username']}: {stat['chosen_count']} раз" for stat in stats])
             await message.reply(stats_message)
 
@@ -281,17 +281,17 @@ async def show_fight_stats(message: types.Message):
             for stat in stats:
                 stats_message += (f"@{stat['username']}: Победы: {stat['wins']}, "
                                   f"Поражения: {stat['losses']}, "
-                                  f"Количество очков: {stat['current_balance']}\n")
+                                  f"Количество ♂️semen: {stat['current_balance']}\n")
             await message.reply(stats_message)
 
 async def main():
     await bot.set_my_commands([
-        BotCommand(command="start", description="Choose fighter of the day"),
-        BotCommand(command="register", description="Register for the game"),
-        BotCommand(command="rating", description="Show common rating"),
-        BotCommand(command="duel", description="Challenge another player to a duel"),
-        BotCommand(command="accept", description="Accept a duel"),
-        BotCommand(command="fight_stats", description="Show fights statistics")
+        BotCommand(command="start", description="Выбрать пидора дня"),
+        BotCommand(command="register", description="Зарегистрироваться"),
+        BotCommand(command="rating", description="Рейтинг пидорасов"),
+        BotCommand(command="duel", description="Вызвать побороться"),
+        BotCommand(command="accept", description="Принять бой"),
+        BotCommand(command="fight_stats", description="Статистика боев")
     ])
 
     dp.message.register(register_user, Command(commands=["register"]))
