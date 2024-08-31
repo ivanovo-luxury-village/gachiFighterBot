@@ -1,0 +1,57 @@
+version: "3.8"
+
+services:
+  postgres:
+    container_name: postgres-gachi-fighter-bot
+    image: postgres:15-alpine
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./pg-init:/docker-entrypoint-initdb.d
+    env_file:
+      - .env
+    networks:
+      - default
+
+  caddy:
+    image: caddy:2.8.1-alpine
+    container_name: caddy-gachi-fighter-bot
+    restart: unless-stopped
+    ports:
+      - 80:80
+      - 443:443
+      - "443:443/udp"
+    cap_add:
+      - NET_ADMIN
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    environment:
+      LOG_FILE: "/data/access.log"
+    networks:
+      - default
+
+  gachi-fighter-bot:
+    container_name: gachi-fighter-bot
+    build: .
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:8080"
+    env_file:
+      - .env
+    networks:
+      - default
+
+networks:
+  default:
+    driver: bridge
+
+volumes:
+  pgdata:
+    driver: local
+  caddy_data:
+    driver: local
+  caddy_config:
+    driver: local
