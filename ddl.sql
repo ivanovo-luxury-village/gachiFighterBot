@@ -74,6 +74,8 @@ CREATE TABLE duel_state (
     challenger_id BIGINT NOT NULL,
     challenged_id BIGINT,
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    weapon_chosen_challenger INT,
+    weapon_chosen_challenged INT,
     FOREIGN KEY (challenger_id) REFERENCES users (id),
     FOREIGN KEY (challenged_id) REFERENCES users (id)
 )
