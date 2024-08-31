@@ -9,6 +9,7 @@ import random
 import asyncio
 from dotenv import load_dotenv
 import os
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton # для добавления кнопок
 
 load_dotenv()
 
@@ -91,7 +92,70 @@ async def choose_pidor_of_the_day(message: types.Message):
             result_message = result_message_template.replace('{username}', f'@{chosen_user["username"]}')
             await message.reply(result_message)
 
-# функция отвечающая за дуэли
+# Набор функций, отвечающих за дуэли (наш duel kit)
+## Выбор оружия через кнопки
+async def send_weapon_choice_buttons(user_id: int, message: types.Message):
+    keyboard = InlineKeyboardMarkup(row_width=3)
+    buttons = [
+        InlineKeyboardButton(text="Dick", callback_data=f"weapon_choice:1:{user_id}"),
+        InlineKeyboardButton(text="Ass", callback_data=f"weapon_choice:2:{user_id}"),
+        InlineKeyboardButton(text="Finger", callback_data=f"weapon_choice:3:{user_id}")
+    ]
+    keyboard.add(*buttons)
+    
+    await message.reply("Выберите ваше оружие:", reply_markup=keyboard)
+
+## Обработчик для выбора оружия
+@dp.callback_query_handler(lambda c: c.data and c.data.startswith("weapon_choice"))
+async def process_weapon_choice(callback_query: types.CallbackQuery):
+    await create_db_pool()
+    async with pool.acquire() as connection:
+        try:
+            # разбиваем callback_data на части
+            _, weapon_id, user_id = callback_query.data.split(":")
+            user_id = int(user_id)
+            weapon_id = int(weapon_id)
+            
+            # получение информации о дуэли
+            duel_info = await connection.fetchrow(
+                'SELECT * FROM duel_state WHERE (challenger_id = $1 OR challenged_id = $1)',
+                user_id
+            )
+            
+            if not duel_info:
+                await callback_query.answer('Дуэль не найдена.')
+                return
+
+            # сохранение выбора оружия
+            if user_id == duel_info['challenger_id']:
+                await connection.execute(
+                    'UPDATE duel_state SET weapon_chosen_challenger = $1 WHERE id = $2',
+                    weapon_id, duel_info['id']
+                )
+            elif user_id == duel_info['challenged_id']:
+                await connection.execute(
+                    'UPDATE duel_state SET weapon_chosen_challenged = $1 WHERE id = $2',
+                    weapon_id, duel_info['id']
+                )
+            
+            await callback_query.answer(f"Вы выбрали {['Dick', 'Ass', 'Finger'][weapon_id-1]}!")
+
+            # проверка, выбрали ли оба участника оружие
+            duel_info = await connection.fetchrow(
+                'SELECT weapon_chosen_challenger, weapon_chosen_challenged FROM duel_state WHERE id = $1',
+                duel_info['id']
+            )
+            
+            if duel_info['weapon_chosen_challenger'] is not None and duel_info['weapon_chosen_challenged'] is not None:
+                # оба участника выбрали оружие, продолжаем дуэль
+                await start_duel(callback_query.message, duel_info)
+
+        except Exception as e:
+            logging.error(f'Error in process_weapon_choice: {e}')
+            await callback_query.message.reply('Произошла ошибка при выборе оружия. Попробуйте еще раз.')
+
+
+## Функция для создания дуэли
 async def duel_command(message: types.Message):
     await create_db_pool()
     async with pool.acquire() as connection:
@@ -131,10 +195,10 @@ async def duel_command(message: types.Message):
                     return
             
             else:
-                # создание открытой дуэли
+                # cоздание открытой дуэли
                 await message.reply('Вы создали открытую дуэль! Любой зарегистрированный пользователь может принять вызов командой /accept.')
                 result = await connection.execute(
-                    'INSERT INTO duel_state (challenger_id, challenged_id) VALUES ($1, NULL)', 
+                    'INSERT INTO duel_state (challenger_id, challenged_id, weapon_chosen_challenger, weapon_chosen_challenged) VALUES ($1, NULL, NULL, NULL)', 
                     challenger_id
                 )
                 
@@ -152,7 +216,7 @@ async def duel_command(message: types.Message):
                 await message.reply(f'@{message.reply_to_message.from_user.username}, вас вызвали на бой! Примете вызов? (/accept)')
 
             result = await connection.execute(
-                'INSERT INTO duel_state (challenger_id, challenged_id) VALUES ($1, $2)', 
+                'INSERT INTO duel_state (challenger_id, challenged_id, weapon_chosen_challenger, weapon_chosen_challenged) VALUES ($1, $2, NULL, NULL)', 
                 challenger_id, challenged_id
             )
             
@@ -167,6 +231,7 @@ async def duel_command(message: types.Message):
             await message.reply('Произошла ошибка при создании дуэли. Попробуйте еще раз.')
 
 
+## Функция для принятия дуэли
 async def accept_duel_command(message: types.Message):
     await create_db_pool()
     async with pool.acquire() as connection:
@@ -182,7 +247,7 @@ async def accept_duel_command(message: types.Message):
             
             current_time = datetime.utcnow()
 
-            # получение информации об открытой дуэли
+            # Получение информации об открытой дуэли
             duel_info = await connection.fetchrow(
                 'SELECT * FROM duel_state WHERE challenged_id IS NULL AND created_at > $1',
                 current_time - timedelta(minutes=5)
@@ -192,15 +257,29 @@ async def accept_duel_command(message: types.Message):
                 await message.reply('Нет доступных открытых дуэлей для принятия.')
                 return
 
-            # обновление записи, добавление challenged_id
+            # Обновление записи, добавление challenged_id
             await connection.execute(
                 'UPDATE duel_state SET challenged_id = $1 WHERE id = $2',
                 user_id, duel_info['id']
             )
 
-            await message.reply('Борьба началась!')
+            await message.reply('Вы приняли вызов! Теперь выберите оружие.')
             
-            # отправка первой GIF-изображения
+            # Отправка кнопок для выбора оружия обоим участникам
+            await send_weapon_choice_buttons(duel_info['challenger_id'], message)
+            await send_weapon_choice_buttons(user_id, message)
+
+        except Exception as e:
+            logging.error(f'Error in accept_duel_command: {e}')
+            await message.reply('Произошла ошибка при принятии дуэли. Попробуйте еще раз.')
+
+
+## Функция для продолжения дуэли после выбора оружия
+async def start_duel(message: types.Message, duel_info):
+    await create_db_pool()
+    async with pool.acquire() as connection:
+        try:
+            # Отправка первой GIF-изображения
             gif_files = [
                 'gifs/gif4.gif', 
                 'gifs/optimized_gif2.gif', 
@@ -209,20 +288,20 @@ async def accept_duel_command(message: types.Message):
             first_gif = FSInputFile(gif_files[0])
             sent_message = await bot.send_animation(message.chat.id, first_gif)
 
-            # задержка и смена GIF-изображений
+            # Задержка и смена GIF-изображений
             for gif in gif_files[1:]:
                 await asyncio.sleep(2)
                 new_gif = FSInputFile(gif)
                 media = InputMediaAnimation(media=new_gif)  # передача объекта файла как параметра media
                 await bot.edit_message_media(media=media, chat_id=message.chat.id, message_id=sent_message.message_id)
 
-            # удаление сообщения с GIF-картинкой
+            # Удаление сообщения с GIF-картинкой
             await asyncio.sleep(2)  # задержка перед удалением
             await bot.delete_message(chat_id=message.chat.id, message_id=sent_message.message_id)
 
-            # рандомный выбор победителя и обновление баланса
-            winner_id = random.choice([duel_info['challenger_id'], user_id])
-            loser_id = duel_info['challenger_id'] if winner_id != duel_info['challenger_id'] else user_id
+            # Рандомный выбор победителя и обновление баланса
+            winner_id = random.choice([duel_info['challenger_id'], duel_info['challenged_id']])
+            loser_id = duel_info['challenger_id'] if winner_id != duel_info['challenger_id'] else duel_info['challenged_id']
             points = int(random.expovariate(1/50))
 
             await connection.execute('UPDATE user_balance SET points = points + $1 WHERE user_id = $2', points, winner_id)
@@ -234,10 +313,11 @@ async def accept_duel_command(message: types.Message):
             await message.reply(f'Победитель дуэли: @{winner_name}. Выиграно {points} ♂️semen!')
 
         except Exception as e:
-            logging.error(f'Error in accept_duel_command: {e}')
-            await message.reply('Произошла ошибка при принятии дуэли. Попробуйте еще раз.')
+            logging.error(f'Error in start_duel: {e}')
+            await message.reply('Произошла ошибка при проведении дуэли. Попробуйте еще раз.')
 
-# вывод статистики
+
+## Вывод статистики
 async def rating(message: types.Message):
     await create_db_pool()
     current_year = datetime.utcnow().year
