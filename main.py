@@ -96,7 +96,6 @@ async def duel_command(message: types.Message):
     await create_db_pool()
     async with pool.acquire() as connection:
         try:
-            # проверка, зарегистрирован ли пользователь, вызвавший команду
             challenger_id = await connection.fetchval(
                 'SELECT id FROM users WHERE telegram_id = $1', message.from_user.id)
             logging.info(f'Challenger ID: {challenger_id}')
@@ -132,8 +131,14 @@ async def duel_command(message: types.Message):
                     return
             
             else:
-                await message.reply('Чтобы вызвать кого-то на бой, вы должны упомянуть его @username или ответить на сообщение этого пользователя.')
-                logging.info('No mention or reply to message found.')
+                # создание открытой дуэли
+                await message.reply('Вы создали открытую дуэль! Любой зарегистрированный пользователь может принять вызов командой /accept.')
+                result = await connection.execute(
+                    'INSERT INTO duel_state (challenger_id, challenged_id) VALUES ($1, NULL)', 
+                    challenger_id
+                )
+                
+                logging.info(f'Open Duel Insert Result: {result}')
                 return
             
             # проверка, чтобы пользователь не мог вызвать сам себя на дуэль
@@ -146,7 +151,6 @@ async def duel_command(message: types.Message):
             else:
                 await message.reply(f'@{message.reply_to_message.from_user.username}, вас вызвали на бой! Примете вызов? (/accept)')
 
-            # Логика для отслеживания состояния дуэли
             result = await connection.execute(
                 'INSERT INTO duel_state (challenger_id, challenged_id) VALUES ($1, $2)', 
                 challenger_id, challenged_id
@@ -162,45 +166,41 @@ async def duel_command(message: types.Message):
             logging.error(f'Error in duel_command: {e}')
             await message.reply('Произошла ошибка при создании дуэли. Попробуйте еще раз.')
 
+
+
 async def accept_duel_command(message: types.Message):
     await create_db_pool()
     async with pool.acquire() as connection:
         try:
-            # получаем внутренний ID пользователя из таблицы users
             user_id = await connection.fetchval(
                 'SELECT id FROM users WHERE telegram_id = $1', 
                 message.from_user.id
             )
 
-            # если пользователь не найден, отправляем сообщение и выходим
             if not user_id:
                 await message.reply('Вы не зарегистрированы в игре. Пожалуйста, используйте команду /register, чтобы зарегистрироваться.')
                 return
             
-            # получаем текущее время в UTC
             current_time = datetime.utcnow()
 
-            # логирование текущего времени и всех дуэлей в таблице
-            all_duels = await connection.fetch(
-                'SELECT * FROM duel_state WHERE challenged_id = $1', user_id
-            )
-
-            if not all_duels:
-                await message.reply('У вас нет активных боев для принятия.')
-                return
-
-            # выбор дуэлей с учетом временной зоны
+            # получение информации об открытой дуэли
             duel_info = await connection.fetchrow(
-                'SELECT * FROM duel_state WHERE challenged_id = $1 AND created_at > $2',
-                user_id, current_time - timedelta(minutes=5)
+                'SELECT * FROM duel_state WHERE challenged_id IS NULL AND created_at > $1',
+                current_time - timedelta(minutes=5)
             )
 
             if not duel_info:
-                await message.reply('Нет активных боев для принятия.')
+                await message.reply('Нет доступных дуэлей для принятия.')
                 return
 
-            await message.reply('Борьба началась!')
+            # обновление записи, добавление challenged_id
+            await connection.execute(
+                'UPDATE duel_state SET challenged_id = $1 WHERE id = $2',
+                user_id, duel_info['id']
+            )
 
+            await message.reply('Борьба началась!')
+            
             # отправка первой GIF-изображения
             gif_files = [
                 'gifs/gif4.gif', 
@@ -222,14 +222,14 @@ async def accept_duel_command(message: types.Message):
             await bot.delete_message(chat_id=message.chat.id, message_id=sent_message.message_id)
 
             # рандомный выбор победителя и обновление баланса
-            winner_id = random.choice([duel_info['challenger_id'], duel_info['challenged_id']])
-            loser_id = duel_info['challenger_id'] if winner_id != duel_info['challenger_id'] else duel_info['challenged_id']
+            winner_id = random.choice([duel_info['challenger_id'], user_id])
+            loser_id = duel_info['challenger_id'] if winner_id != duel_info['challenger_id'] else user_id
             points = int(random.expovariate(1/50))
 
             await connection.execute('UPDATE user_balance SET points = points + $1 WHERE user_id = $2', points, winner_id)
             await connection.execute('UPDATE user_balance SET points = points - $1 WHERE user_id = $2', points, loser_id)
             await connection.execute('INSERT INTO fight_history (winner_id, loser_id, points_won, points_lost) VALUES ($1, $2, $3, $3)', winner_id, loser_id, points)
-            await connection.execute('DELETE FROM duel_state WHERE challenger_id = $1 AND challenged_id = $2', duel_info['challenger_id'], duel_info['challenged_id'])
+            await connection.execute('DELETE FROM duel_state WHERE id = $1', duel_info['id'])
 
             winner_name = await connection.fetchval('SELECT username FROM users WHERE id = $1', winner_id)
             await message.reply(f'Победитель дуэли: @{winner_name}. Выиграно {points} ♂️semen!')
@@ -237,6 +237,7 @@ async def accept_duel_command(message: types.Message):
         except Exception as e:
             logging.error(f'Error in accept_duel_command: {e}')
             await message.reply('Произошла ошибка при принятии дуэли. Попробуйте еще раз.')
+
 
 # вывод статистики
 async def rating(message: types.Message):
