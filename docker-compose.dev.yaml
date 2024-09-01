@@ -2,10 +2,10 @@ version: "3.8"
 
 services:
   postgres:
-    container_name: postgres-gachi-fighter-bot
+    container_name: postgres-dev-gachi-fighter-bot
     image: postgres:15-alpine
     ports:
-      - "127.0.0.1:5432:5432"
+      - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./pg-init:/docker-entrypoint-initdb.d
@@ -19,8 +19,23 @@ services:
       timeout: 5s
       retries: 5
 
+  pgadmin:
+    container_name: pgadmin-dev-gachi-fighter-bot
+    image: dpage/pgadmin4:8.4
+    ports:
+      - "8082:80"
+    volumes:
+      - pgadmindata:/var/lib/pgadmin
+    env_file:
+      - .env
+    networks:
+      - default
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   migrator:
-    container_name: postgres-migrator-gachi-fighter-bot
+    container_name: postgres-migrator-dev-gachi-fighter-bot
     build:
       dockerfile: ./Dockerfile.liquibase
       context: .
@@ -41,38 +56,6 @@ services:
       postgres:
         condition: service_healthy
 
-  # caddy:
-  #   image: caddy:2.8.1-alpine
-  #   container_name: caddy-gachi-fighter-bot
-  #   restart: unless-stopped
-  #   ports:
-  #     - 80:80
-  #     - 443:443
-  #     - "443:443/udp"
-  #   cap_add:
-  #     - NET_ADMIN
-  #   volumes:
-  #     - ./Caddyfile:/etc/caddy/Caddyfile:ro
-  #     - caddy_data:/data
-  #     - caddy_config:/config
-  #   environment:
-  #     LOG_FILE: "/data/access.log"
-  #   networks:
-  #     - default
-
-  gachi-fighter-bot:
-    container_name: gachi-fighter-bot
-    build:
-      dockerfile: ./Dockerfile
-      context: .
-    restart: unless-stopped
-    ports:
-      - "80:80"
-    env_file:
-      - .env
-    networks:
-      - default
-
 networks:
   default:
     driver: bridge
@@ -80,7 +63,5 @@ networks:
 volumes:
   pgdata:
     driver: local
-  caddy_data:
-    driver: local
-  caddy_config:
+  pgadmindata:
     driver: local
