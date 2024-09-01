@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
   postgres:
     container_name: postgres-gachi-fighter-bot
@@ -24,7 +22,7 @@ services:
     build:
       dockerfile: ./Dockerfile.liquibase
       context: .
-    restart: on-failure
+    restart: no
     command:
       - sh
       - -c
@@ -33,8 +31,8 @@ services:
         docker-entrypoint.sh --changelog-file=./changelog/changelog.xml update
     env_file:
       - .env
-    environment:
-      - LIQUIBASE_LOG_LEVEL=FINE
+    # environment:
+    #   - LIQUIBASE_LOG_LEVEL=FINE
     networks:
       - default
     depends_on:
