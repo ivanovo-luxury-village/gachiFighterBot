@@ -1,8 +1,7 @@
 import logging
 import asyncpg
 from aiogram import Bot, Dispatcher, types
-from aiogram.enums import ParseMode
-from aiogram.types import BotCommand, InputFile, FSInputFile, InputMediaAnimation
+from aiogram.types import BotCommand, FSInputFile, InputMediaAnimation
 from aiogram.filters import Command
 from datetime import datetime, timedelta
 import random
@@ -16,11 +15,11 @@ load_dotenv()
 API_TOKEN = os.getenv('TOKEN')
 
 # настройки подключения к базе данных
-DB_HOST = os.getenv('DB_HOST')
-DB_USER = os.getenv('DB_USER')
-DB_PASSWORD = os.getenv('DB_PASSWORD')
-DB_NAME = os.getenv('DB_NAME')
-DB_PORT = os.getenv('DB_PORT')
+DB_HOST = os.getenv('POSTGRES_HOST')
+DB_USER = os.getenv('POSTGRES_USER')
+DB_PASSWORD = os.getenv('POSTGRES_PASSWORD')
+DB_NAME = os.getenv('POSTGRES_DB')
+DB_PORT = os.getenv('POSTGRES_PORT')
 
 # инициализация бота и диспетчера
 logging.basicConfig(level=logging.INFO)

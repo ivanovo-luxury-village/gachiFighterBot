@@ -1,0 +1,84 @@
+services:
+  postgres:
+    container_name: postgres-gachi-fighter-bot
+    image: postgres:15-alpine
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./pg-init:/docker-entrypoint-initdb.d
+    env_file:
+      - .env
+    networks:
+      - default
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  migrator:
+    container_name: postgres-migrator-gachi-fighter-bot
+    build:
+      dockerfile: ./Dockerfile.liquibase
+      context: .
+    restart: no
+    command:
+      - sh
+      - -c
+      - |
+        echo "apply migrations..."
+        docker-entrypoint.sh --changelog-file=./changelog/changelog.xml update
+    env_file:
+      - .env
+    # environment:
+    #   - LIQUIBASE_LOG_LEVEL=FINE
+    networks:
+      - default
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # caddy:
+  #   image: caddy:2.8.1-alpine
+  #   container_name: caddy-gachi-fighter-bot
+  #   restart: unless-stopped
+  #   ports:
+  #     - 80:80
+  #     - 443:443
+  #     - "443:443/udp"
+  #   cap_add:
+  #     - NET_ADMIN
+  #   volumes:
+  #     - ./Caddyfile:/etc/caddy/Caddyfile:ro
+  #     - caddy_data:/data
+  #     - caddy_config:/config
+  #   environment:
+  #     LOG_FILE: "/data/access.log"
+  #   networks:
+  #     - default
+
+  gachi-fighter-bot:
+    container_name: gachi-fighter-bot
+    build:
+      dockerfile: ./Dockerfile
+      context: .
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    env_file:
+      - .env
+    networks:
+      - default
+
+networks:
+  default:
+    driver: bridge
+
+volumes:
+  pgdata:
+    driver: local
+  caddy_data:
+    driver: local
+  caddy_config:
+    driver: local
