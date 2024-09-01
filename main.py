@@ -1,8 +1,7 @@
 import logging
 import asyncpg
 from aiogram import Bot, Dispatcher, types
-from aiogram.enums import ParseMode
-from aiogram.types import BotCommand, InputFile, FSInputFile, InputMediaAnimation
+from aiogram.types import BotCommand, FSInputFile, InputMediaAnimation
 from aiogram.filters import Command
 from datetime import datetime, timedelta
 import random
