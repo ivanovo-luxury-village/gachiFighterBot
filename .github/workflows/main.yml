@@ -6,7 +6,7 @@ on:
       - 'v[0-9]+.[0-9]+.[0-9]+'
 
 jobs:
-  publish-docker:
+  publish-main:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -17,7 +17,6 @@ jobs:
         with:
           images: |
             andrew771/gachi-fighter-bot
-            andrew771/gachi-fighter-bot-migrator
           tags: |
             type=semver,pattern={{version}},event=tag
       - name: Login to DockerHub
@@ -32,6 +31,25 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+
+  publish-migrator:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v4
+        with:
+          images: |
+            andrew771/gachi-fighter-bot-migrator
+          tags: |
+            type=semver,pattern={{version}},event=tag
+      - name: Login to DockerHub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
       - name: Build and push
         uses: docker/build-push-action@v3
         with:
@@ -40,3 +58,4 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+
