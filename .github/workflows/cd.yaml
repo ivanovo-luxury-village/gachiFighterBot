@@ -15,22 +15,34 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
       - name: Render template
-        id: render_template
+        id: render_compose_template
         uses: chuhlomin/render-template@v1
         with:
           template: docker-compose.yaml
           vars: |
             tag: ${{ inputs.tag }}
-      - name: Persist rendered template
+      - name: Render template
+        id: render_env_template
+        uses: chuhlomin/render-template@v1
+        with:
+          template: .env.template
+          vars: |
+            postgres_user: ${{ secrets.POSTGRES_USER }}
+            postgres_password: ${{ secrets.POSTGRES_PASSWORD }}
+            pgadmin_email: ${{ secrets.PGADMIN_EMAIL }}
+            pgadmin_password: ${{ secrets.PGADMIN_PASSWORD }}
+            token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      - name: Persist rendered templates
         run: |-
-          echo '${{ steps.render_template.outputs.result }}' > docker-compose.prod.yaml
+          echo '${{ steps.render_compose_template.outputs.result }}' > docker-compose.prod.yaml
+          echo '${{ steps.render_env_template.outputs.result }}' > .env
       - name: Copy docker compose file
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ vars.GACHI_FIGHTER_BOT_HOST }}
           username: ${{ secrets.GACHI_FIGHTER_BOT_USER }}
           password: ${{ secrets.GACHI_FIGHTER_BOT_PASSWORD }}
-          source: docker-compose.prod.yaml
+          source: "docker-compose.prod.yaml,.env"
           target: /opt/gachi-fighter-bot/
           overwrite: true
       - name: Pull and restart docker compose
