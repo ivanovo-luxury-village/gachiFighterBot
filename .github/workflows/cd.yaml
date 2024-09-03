@@ -18,7 +18,7 @@ jobs:
           host: ${{ vars.GACHI_FIGHTER_BOT_HOST }}
           username: ${{ secrets.GACHI_FIGHTER_BOT_USER }}
           password: ${{ secrets.GACHI_FIGHTER_BOT_PASSWORD }}
-          source: "docker-compose.yaml"
+          source: "*"
           target: /opt/gachi-fighter-bot/
       - name: pull and restart docker compose
         uses: appleboy/ssh-action@v0.1.6
