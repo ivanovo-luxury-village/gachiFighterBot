@@ -36,7 +36,7 @@ services:
 
   migrator:
     container_name: postgres-migrator-gachi-fighter-bot
-    image: andrew771/gachi-fighter-bot:{{ .tag }}
+    image: andrew771/gachi-fighter-bot-migrator:{{ .tag }}
     restart: no
     command:
       - sh
@@ -59,7 +59,7 @@ services:
     image: andrew771/gachi-fighter-bot:{{ .tag }}
     restart: unless-stopped
     ports:
-      - "80:80"
+      - "8080:80"
     env_file:
       - .env
     networks:

@@ -1,0 +1,6 @@
+gachi-fighter-bot.ru {
+  reverse_proxy /* 127.0.0.1:8082
+
+  reverse_proxy /webhook 127.0.0.1:8080
+
+}
