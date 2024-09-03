@@ -2,6 +2,7 @@ services:
   postgres:
     container_name: postgres-dev-gachi-fighter-bot
     image: postgres:15-alpine
+    restart: unless-stopped
     ports:
       - "5432:5432"
     volumes:
@@ -20,6 +21,7 @@ services:
   pgadmin:
     container_name: pgadmin-dev-gachi-fighter-bot
     image: dpage/pgadmin4:8.4
+    restart: unless-stopped
     ports:
       - "8082:80"
     volumes:

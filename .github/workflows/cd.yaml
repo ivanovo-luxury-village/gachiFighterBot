@@ -1,0 +1,38 @@
+name: Manual Trigger Workflow
+
+on:
+  workflow_dispatch:
+    inputs:
+      tags:
+        description: "Tag version"
+        required: true
+        type: string
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: copy docker compose file
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ vars.GACHI_FIGHTER_BOT_HOST }}
+          username: ${{ secrets.GACHI_FIGHTER_BOT_USER }}
+          password: ${{ secrets.GACHI_FIGHTER_BOT_PASSWORD }}
+          source: "docker-compose.yaml"
+          target: /opt/gachi-fighter-bot/
+      - name: pull and restart docker compose
+        uses: appleboy/ssh-action@v0.1.6
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
+        with:
+          host: ${{ vars.GACHI_FIGHTER_BOT_HOST }}
+          username: ${{ secrets.GACHI_FIGHTER_BOT_USER }}
+          password: ${{ secrets.GACHI_FIGHTER_BOT_PASSWORD }}
+          script_stop: true
+          script: whoami && echo ${{ inputs.tags }} version
+          # script: |
+          #   cd /opt/gachi-fighter-bot
+          #   docker login -u $DOCKERHUB_USERNAME -p $DOCKERHUB_PASSWORD
+          #   docker compose -f docker-compose.yaml pull && docker compose -f docker-compose.prod.yaml up -d --force-recreate --build
+          #   docker logout
