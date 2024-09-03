@@ -200,11 +200,10 @@ async def accept_duel_command(message: types.Message):
             await message.reply('Борьба началась!')
             
             # отправка первой GIF-изображения
-            gif_files = [
-                'gifs/gif4.gif', 
-                'gifs/optimized_gif2.gif', 
-                'gifs/optimized_gif1.gif'
-            ]
+            gif_folder_path = './gifs'
+            all_gifs = [os.path.join(gif_folder_path, file) for file in os.listdir(gif_folder_path) if file.endswith('.gif')]
+            gif_files = random.sample(all_gifs, 3)
+
             first_gif = FSInputFile(gif_files[0])
             sent_message = await bot.send_animation(message.chat.id, first_gif)
 
@@ -216,7 +215,7 @@ async def accept_duel_command(message: types.Message):
                 await bot.edit_message_media(media=media, chat_id=message.chat.id, message_id=sent_message.message_id)
 
             # удаление сообщения с GIF-картинкой
-            await asyncio.sleep(2)  # задержка перед удалением
+            await asyncio.sleep(3)  # задержка перед удалением
             await bot.delete_message(chat_id=message.chat.id, message_id=sent_message.message_id)
 
             # рандомный выбор победителя и обновление баланса
@@ -295,7 +294,7 @@ async def show_fight_stats(message: types.Message):
 
 async def main():
     await bot.set_my_commands([
-        BotCommand(command="start", description="Выбрать пидора дня"),
+        BotCommand(command="pidor", description="Выбрать пидора дня"),
         BotCommand(command="register", description="Зарегистрироваться"),
         BotCommand(command="rating", description="Рейтинг пидорасов"),
         BotCommand(command="duel", description="Вызвать побороться"),
@@ -304,7 +303,7 @@ async def main():
     ])
 
     dp.message.register(register_user, Command(commands=["register"]))
-    dp.message.register(choose_pidor_of_the_day, Command(commands=["start"]))
+    dp.message.register(choose_pidor_of_the_day, Command(commands=["pidor"]))
     dp.message.register(rating, Command(commands=["rating"]))
     dp.message.register(duel_command, Command(commands=["duel"]))
     dp.message.register(accept_duel_command, Command(commands=["accept"]))
