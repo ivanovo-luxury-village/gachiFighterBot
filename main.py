@@ -187,7 +187,7 @@ async def accept_duel_command(message: types.Message):
             
             current_time = datetime.utcnow()
 
-            # СЦЕНАРИЙ 1: принятие вызова на конкретную дуэль (когда пользователь был вызван другим пользователем)
+            # сценарий 1 & 2: принятие вызова на конкретную дуэль (когда пользователь был вызван другим пользователем)
             logging.info('Searching for specific duel where user was challenged.')
             duel_info = await connection.fetchrow(
                 'SELECT * FROM duel_state WHERE challenged_id = $1 AND duel_type = $2 AND created_at > $3', 
@@ -205,7 +205,7 @@ async def accept_duel_command(message: types.Message):
 
                 # здесь мы не обновляем challenged_id, так как оно уже установлено в вызове дуэли
         
-            # СЦЕНАРИЙ 2: принятие открытой дуэли
+            # сценарий 3: принятие открытой дуэли
             else:
                 logging.info('No specific duel found, searching for open duel.')
                 duel_info = await connection.fetchrow(
