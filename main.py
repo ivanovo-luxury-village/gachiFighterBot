@@ -89,7 +89,7 @@ async def choose_pidor_of_the_day(message: types.Message):
                 'SELECT message_text FROM messages WHERE message_type = $1 ORDER BY random() LIMIT 1', 'RESULT'
             )
             result_message = result_message_template.replace('{username}', f'@{chosen_user["username"]}')
-            await message.reply(result_message, parse_mode=ParseMode.MARKDOWN_V2)
+            await message.reply(result_message)
 
 # функция отвечающая за дуэли
 async def duel_command(message: types.Message):
@@ -191,7 +191,7 @@ async def accept_duel_command(message: types.Message):
             logging.info('Searching for specific duel where user was challenged.')
             duel_info = await connection.fetchrow(
                 'SELECT * FROM duel_state WHERE challenged_id = $1 AND duel_type = $2 AND created_at > $3', 
-                user_id, 'specific', current_time - timedelta(minutes=1)
+                user_id, 'specific', current_time - timedelta(minutes=5)
             )
 
             # если пользователь вызван на конкретную дуэль
@@ -210,7 +210,7 @@ async def accept_duel_command(message: types.Message):
                 logging.info('No specific duel found, searching for open duel.')
                 duel_info = await connection.fetchrow(
                     'SELECT * FROM duel_state WHERE challenged_id IS NULL AND created_at > $1 AND duel_type = $2',
-                    current_time - timedelta(minutes=1), 'open'
+                    current_time - timedelta(minutes=5), 'open'
                 )
 
                 if not duel_info:
