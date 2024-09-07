@@ -82,7 +82,7 @@ async def choose_pidor_of_the_day(message: types.Message):
             scenario_id = await connection.fetchval('SELECT scenario_id FROM (SELECT DISTINCT scenario_id FROM messages WHERE message_type = $1) AS subquery ORDER BY random() LIMIT 1', 'INIT')
             messages = await connection.fetch('SELECT message_text FROM messages WHERE message_type = $1 AND scenario_id = $2 ORDER BY message_order', 'INIT', scenario_id)
             message_texts = [record['message_text'] for record in messages]
-            await send_messages_with_delay(message.chat.id, message_texts, 1.5)
+            await send_messages_with_delay(message.chat.id, message_texts, 2)
 
             # выбор случайного сообщения типа RESULT и вставка имени пользователя
             result_message_template = await connection.fetchval(
