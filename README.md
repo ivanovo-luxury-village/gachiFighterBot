@@ -43,6 +43,10 @@ docker compose -f docker-compose.dev.yaml up --build --force-recreate
 7) Если все ок, не было ошибок, миграции прошли. Делаем MR.
 8) Отправляем на ревью
 9) Готово.
+- Чтобы полностью очистить docker от барахла и заново постестировать базу, можно использовать
+```sh
+docker rm -f $(docker ps -a -q) && docker volume rm $(docker volume ls -q) && docker rmi -f $(docker images -q) && docker builder prune -a
+```
 
 ### Инструкции по прокидыванию портов для разработки бота на вебхуках
 1) В отдельном терминале запускаем команду:
