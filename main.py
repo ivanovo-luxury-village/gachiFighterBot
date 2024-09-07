@@ -321,7 +321,7 @@ async def show_fight_stats(message: types.Message):
             for idx, stat in enumerate(stats, start=1):
                 stats_message += (f"{idx}. {stat['username']}: Победы: {stat['wins']}, "
                                   f"Поражения: {stat['losses']}, "
-                                  f"Количество ♂️semen♂️: {stat['current_balance']}\n\n")
+                                  f"Количество ♂️semen♂️: {stat['current_balance']}\n")
             await message.reply(stats_message)
 
 async def main():
