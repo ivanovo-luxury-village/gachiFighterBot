@@ -16,7 +16,7 @@ load_dotenv()
 API_TOKEN = os.getenv('TOKEN')
 
 # настройки подключения к базе данных
-DB_HOST = os.getenv('POSTGRES_HOST')
+DB_HOST = os.getenv('POSTGRES_DB_HOST')
 DB_USER = os.getenv('POSTGRES_USER')
 DB_PASSWORD = os.getenv('POSTGRES_PASSWORD')
 DB_NAME = os.getenv('POSTGRES_DB')
@@ -44,40 +44,42 @@ async def send_messages_with_delay(chat_id: int, messages: list, delay: float):
 async def register_user(message: types.Message):
     user_id = message.from_user.id
     username = message.from_user.username
+    chat_id = message.chat.id
 
     await create_db_pool()
     async with pool.acquire() as connection:
-        existing_user = await connection.fetchval('SELECT id FROM users WHERE telegram_id = $1', user_id)
+        existing_user = await connection.fetchval('SELECT id FROM users WHERE telegram_group_id = $1 AND telegram_id = $2', chat_id, user_id)
         if existing_user:
             await message.reply('Ты уже зарегистрирован.')
         else:
             new_user_id = await connection.fetchval(
-                'INSERT INTO users (telegram_id, username) VALUES ($1, $2) RETURNING id', user_id, username
+                'INSERT INTO users (telegram_group_id, telegram_id, username) VALUES ($1, $2, $3) RETURNING id', chat_id, user_id, username
             )
-            await connection.execute('INSERT INTO user_balance (user_id, points) VALUES ($1, 500)', new_user_id)
+            await connection.execute('INSERT INTO user_balance (telegram_group_id, user_id, points) VALUES ($1, $2, 500)', chat_id, new_user_id)
             await message.reply('Ты успешно зарегистрирован!')
 
 # выбор пидора дня
 async def choose_pidor_of_the_day(message: types.Message):
     today = datetime.utcnow().date()
+    chat_id = message.chat.id
     current_year = today.year
 
     await create_db_pool()
     async with pool.acquire() as connection:
-        fighter_today = await connection.fetchrow('SELECT user_id FROM pidor_of_the_day WHERE chosen_at = $1', today)
+        fighter_today = await connection.fetchrow('SELECT user_id FROM pidor_of_the_day WHERE telegram_group_id = $1 AND chosen_at = $2', chat_id, today)
 
         if fighter_today:
-            user = await connection.fetchrow('SELECT username FROM users WHERE id = $1', fighter_today['user_id'])
+            user = await connection.fetchrow('SELECT username FROM users WHERE telegram_group_id = $1 AND id = $2', chat_id, fighter_today['user_id'])
             await message.reply(f'Согласно моей информации, по результатам сегодняшнего розыгрыша *пидор* дня: @{user["username"]}', parse_mode=ParseMode.MARKDOWN_V2)
         else:
-            users = await connection.fetch('SELECT id, username FROM users')
+            users = await connection.fetch('SELECT id, username FROM users WHERE telegram_group_id = $1', chat_id)
             if not users:
                 await message.reply('Нет зарегистрированных пользователей.')
                 return
 
             chosen_user = random.choice(users)
-            await connection.execute('INSERT INTO pidor_of_the_day (user_id, chosen_at, chosen_year) VALUES ($1, $2, $3)', chosen_user['id'], today, current_year)
-            await connection.execute('INSERT INTO statistics (user_id, chosen_count, chosen_year) VALUES ($1, 1, $2) ON CONFLICT (user_id, chosen_year) DO UPDATE SET chosen_count = statistics.chosen_count + 1', chosen_user['id'], current_year)
+            await connection.execute('INSERT INTO pidor_of_the_day (user_id, chosen_at, chosen_year, telegram_group_id) VALUES ($1, $2, $3, $4)', chosen_user['id'], today, current_year, chat_id)
+            await connection.execute('INSERT INTO statistics (user_id, chosen_count, chosen_year, telegram_group_id) VALUES ($1, 1, $2, $3) ON CONFLICT (user_id, chosen_year, telegram_group_id) DO UPDATE SET chosen_count = statistics.chosen_count + 1', chosen_user['id'], current_year, chat_id)
 
             scenario_id = await connection.fetchval('SELECT scenario_id FROM (SELECT DISTINCT scenario_id FROM messages WHERE message_type = $1) AS subquery ORDER BY random() LIMIT 1', 'INIT')
             messages = await connection.fetch('SELECT message_text FROM messages WHERE message_type = $1 AND scenario_id = $2 ORDER BY message_order', 'INIT', scenario_id)
@@ -96,8 +98,9 @@ async def duel_command(message: types.Message):
     await create_db_pool()
     async with pool.acquire() as connection:
         try:
+            chat_id = message.chat.id
             challenger_id = await connection.fetchval(
-                'SELECT id FROM users WHERE telegram_id = $1', message.from_user.id)
+                'SELECT id FROM users WHERE telegram_group_id = $1 AND telegram_id = $2', chat_id, message.from_user.id)
             logging.info(f'Challenger ID: {challenger_id}')
             
             if not challenger_id:
@@ -111,7 +114,7 @@ async def duel_command(message: types.Message):
             if message.reply_to_message:
                 logging.info('Reply to message found.')
                 challenged_id = await connection.fetchval(
-                    'SELECT id FROM users WHERE telegram_id = $1', message.reply_to_message.from_user.id)
+                    'SELECT id FROM users WHERE telegram_group_id = $1 AND telegram_id = $2', chat_id, message.reply_to_message.from_user.id)
                 logging.info(f'Challenged ID from reply: {challenged_id}')
 
                 if not challenged_id:
@@ -133,7 +136,7 @@ async def duel_command(message: types.Message):
             elif len(message.text.split()) > 1:
                 mentioned_username = message.text.split()[1].strip('@')
                 challenged_id = await connection.fetchval(
-                    'SELECT id FROM users WHERE username = $1', mentioned_username)
+                    'SELECT id FROM users WHERE telegram_group_id = $1 AND username = $2', chat_id, mentioned_username)
                 logging.info(f'Challenged ID from mention: {challenged_id}')
 
                 if not challenged_id:
@@ -152,10 +155,22 @@ async def duel_command(message: types.Message):
             # сценарий 3: открытая дуэль
             else:
                 logging.info('Open duel created.')
-                await message.reply('Я новый *♂dungeon master♂*\! Кто не согласен, отзовись или молчи вечно\! /accept\.', parse_mode=ParseMode.MARKDOWN_V2)
+
+                imgs_folder_path = './pics'
+                all_imgs = [os.path.join(imgs_folder_path, file) for file in os.listdir(imgs_folder_path) if file.endswith('.jpg')]
+                image_path = random.sample(all_imgs, 1)[0]
+
+                image = FSInputFile(image_path)
+                await bot.send_photo(
+                    chat_id=chat_id, 
+                    photo=image, 
+                    caption='Я новый *♂dungeon master♂*\! Кто не согласен, отзовись или молчи вечно\! /accept\.', 
+                    parse_mode='MarkdownV2'
+                )
+
                 result = await connection.execute(
-                    'INSERT INTO duel_state (challenger_id, challenged_id, duel_type) VALUES ($1, $2, $3)', 
-                    challenger_id, None, 'open'
+                    'INSERT INTO duel_state (challenger_id, challenged_id, duel_type, telegram_group_id) VALUES ($1, $2, $3, $4)', 
+                    challenger_id, None, 'open', chat_id
                 )
                 logging.info(f'Open Duel Insert Result: {result}')
                 return
@@ -163,8 +178,8 @@ async def duel_command(message: types.Message):
             # добавление дуэли в базу (кроме открытой дуэли)
             if challenged_id is not None:
                 result = await connection.execute(
-                    'INSERT INTO duel_state (challenger_id, challenged_id, duel_type) VALUES ($1, $2, $3)', 
-                    challenger_id, challenged_id, 'specific'
+                    'INSERT INTO duel_state (challenger_id, challenged_id, duel_type, telegram_group_id) VALUES ($1, $2, $3, $4)', 
+                    challenger_id, challenged_id, 'specific', chat_id
                 )
                 logging.info(f'Duel Insert Result: {result}')
 
@@ -176,9 +191,10 @@ async def accept_duel_command(message: types.Message):
     await create_db_pool()
     async with pool.acquire() as connection:
         try:
+            chat_id = message.chat.id
             user_id = await connection.fetchval(
-                'SELECT id FROM users WHERE telegram_id = $1', 
-                message.from_user.id
+                'SELECT id FROM users WHERE telegram_group_id = $1 AND telegram_id = $2', 
+                chat_id, message.from_user.id
             )
 
             if not user_id:
@@ -190,8 +206,8 @@ async def accept_duel_command(message: types.Message):
             # сценарий 1 & 2: принятие вызова на конкретную дуэль (когда пользователь был вызван другим пользователем)
             logging.info('Searching for specific duel where user was challenged.')
             duel_info = await connection.fetchrow(
-                'SELECT * FROM duel_state WHERE challenged_id = $1 AND duel_type = $2 AND created_at > $3', 
-                user_id, 'specific', current_time - timedelta(minutes=5)
+                'SELECT * FROM duel_state WHERE telegram_group_id = $1 AND challenged_id = $2 AND duel_type = $3 AND created_at > $4', 
+                chat_id, user_id, 'specific', current_time - timedelta(minutes=5)
             )
 
             # если пользователь вызван на конкретную дуэль
@@ -209,8 +225,8 @@ async def accept_duel_command(message: types.Message):
             else:
                 logging.info('No specific duel found, searching for open duel.')
                 duel_info = await connection.fetchrow(
-                    'SELECT * FROM duel_state WHERE challenged_id IS NULL AND created_at > $1 AND duel_type = $2',
-                    current_time - timedelta(minutes=5), 'open'
+                    'SELECT * FROM duel_state WHERE telegram_group_id = $1 AND challenged_id IS NULL AND created_at > $2 AND duel_type = $3',
+                    chat_id, current_time - timedelta(minutes=5), 'open'
                 )
 
                 if not duel_info:
@@ -224,8 +240,8 @@ async def accept_duel_command(message: types.Message):
 
                 # обновляем запись, добавляем challenged_id
                 await connection.execute(
-                    'UPDATE duel_state SET challenged_id = $1 WHERE id = $2',
-                    user_id, duel_info['id']
+                    'UPDATE duel_state SET challenged_id = $1 WHERE telegram_group_id = $2 AND id = $3',
+                    user_id, chat_id, duel_info['id']
                 )
 
             await message.reply('Борьба началась!')
@@ -254,12 +270,12 @@ async def accept_duel_command(message: types.Message):
             loser_id = duel_info['challenger_id'] if winner_id != duel_info['challenger_id'] else user_id
             points = int(random.expovariate(1/50))
 
-            await connection.execute('UPDATE user_balance SET points = points + $1 WHERE user_id = $2', points, winner_id)
-            await connection.execute('UPDATE user_balance SET points = points - $1 WHERE user_id = $2', points, loser_id)
-            await connection.execute('INSERT INTO fight_history (winner_id, loser_id, points_won, points_lost) VALUES ($1, $2, $3, $3)', winner_id, loser_id, points)
-            await connection.execute('DELETE FROM duel_state WHERE id = $1', duel_info['id'])
+            await connection.execute('UPDATE user_balance SET points = points + $1 WHERE telegram_group_id = $2 AND user_id = $3', points, chat_id, winner_id)
+            await connection.execute('UPDATE user_balance SET points = points - $1 WHERE telegram_group_id = $2 AND user_id = $3', points, chat_id, loser_id)
+            await connection.execute('INSERT INTO fight_history (winner_id, loser_id, points_won, points_lost, telegram_group_id) VALUES ($1, $2, $3, $3, $4)', winner_id, loser_id, points, chat_id)
+            await connection.execute('DELETE FROM duel_state WHERE telegram_group_id = $1 AND id = $2', chat_id, duel_info['id'])
 
-            winner_name = await connection.fetchval('SELECT username FROM users WHERE id = $1', winner_id)
+            winner_name = await connection.fetchval('SELECT username FROM users WHERE telegram_group_id = $1 AND id = $2', chat_id, winner_id)
             await message.reply(f'Победитель дуэли: @{winner_name}. Выиграно {points} ♂️semen!')
 
         except Exception as e:
@@ -270,6 +286,7 @@ async def accept_duel_command(message: types.Message):
 async def rating(message: types.Message):
     await create_db_pool()
     current_year = datetime.utcnow().year
+    chat_id = message.chat.id
 
     async with pool.acquire() as connection:
         stats = await connection.fetch(
@@ -279,9 +296,13 @@ async def rating(message: types.Message):
                 , COALESCE(statistics.chosen_count, 0) AS chosen_count
             FROM users
             LEFT JOIN statistics 
-                ON users.id = statistics.user_id AND statistics.chosen_year = $1
+                ON users.id = statistics.user_id 
+                    AND users.telegram_group_id = statistics.telegram_group_id
+                    AND statistics.chosen_year = $1
+            WHERE 1=1
+                AND users.telegram_group_id = $2
             ORDER BY chosen_count DESC
-            ''', current_year
+            ''', current_year, chat_id 
         )
 
         if not stats:
@@ -294,6 +315,8 @@ async def rating(message: types.Message):
 
 async def show_fight_stats(message: types.Message):
     await create_db_pool()
+
+    chat_id = message.chat.id
     
     async with pool.acquire() as connection:
         stats = await connection.fetch(
@@ -305,13 +328,16 @@ async def show_fight_stats(message: types.Message):
                 , COALESCE(user_balance.points, 0) AS current_balance
             FROM users
             LEFT JOIN fight_history 
-                ON users.id = fight_history.winner_id 
-                    OR users.id = fight_history.loser_id
+                ON (users.id = fight_history.winner_id OR users.id = fight_history.loser_id)
+                    AND users.telegram_group_id = fight_history.telegram_group_id
             LEFT JOIN user_balance 
                 ON users.id = user_balance.user_id
+                    AND users.telegram_group_id = user_balance.telegram_group_id
+            WHERE 1=1
+                AND users.telegram_group_id = $1
             GROUP BY users.username, user_balance.points
             ORDER BY current_balance DESC
-            '''
+            ''', chat_id
         )
 
         if not stats:
