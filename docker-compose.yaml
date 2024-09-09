@@ -63,6 +63,11 @@ services:
       - .env
     networks:
       - default
+    depends_on:
+      migrator:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
 
 networks:
   default:
