@@ -266,7 +266,13 @@ async def choose_weapon(message: types.Message, duel_info, user_to_choose):
         InlineKeyboardButton(text="Оружие 2", callback_data=WeaponCallbackData(weapon="wp2", user_id=user_to_choose, duel_id=duel_id).pack()),
         InlineKeyboardButton(text="Оружие 3", callback_data=WeaponCallbackData(weapon="wp3", user_id=user_to_choose, duel_id=duel_id).pack())
     ]])
-    await message.answer(f"@{user_to_choose}, выбери оружие:", reply_markup=keyboard)
+
+    if message.reply_markup:
+        # если сообщение уже есть, редактируем его
+        await message.edit_text(f"@{user_to_choose}, выбери оружие:", reply_markup=keyboard)
+    else:
+        # отправляем новое сообщение только один раз
+        await message.answer(f"@{user_to_choose}, выбери оружие:", reply_markup=keyboard)
 
 # обработчик выбора оружия
 async def weapon_chosen(callback_query: CallbackQuery, callback_data: WeaponCallbackData):
