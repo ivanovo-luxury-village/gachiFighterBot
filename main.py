@@ -16,7 +16,7 @@ load_dotenv()
 API_TOKEN = os.getenv('TOKEN')
 
 # настройки подключения к базе данных
-DB_HOST = os.getenv('POSTGRES_HOST')
+DB_HOST = os.getenv('POSTGRES_DB_HOST')
 DB_USER = os.getenv('POSTGRES_USER')
 DB_PASSWORD = os.getenv('POSTGRES_PASSWORD')
 DB_NAME = os.getenv('POSTGRES_DB')
@@ -244,6 +244,16 @@ async def accept_duel_command(message: types.Message):
                     user_id, chat_id, duel_info['id']
                 )
 
+            await start_duel(message, duel_info, user_id, chat_id)
+
+        except Exception as e:
+            logging.error(f'Error in accept_duel_command: {e}')
+            await message.reply('Произошла ошибка при принятии дуэли. Попробуйте еще раз.')
+
+async def start_duel(message: types.Message, duel_info, user_id, chat_id):
+    await create_db_pool()
+    async with pool.acquire() as connection:    
+        try:
             await message.reply('Борьба началась!')
 
             # отправка GIF-изображений
@@ -279,8 +289,8 @@ async def accept_duel_command(message: types.Message):
             await message.reply(f'Победитель дуэли: @{winner_name}. Выиграно {points} ♂️semen!')
 
         except Exception as e:
-            logging.error(f'Error in accept_duel_command: {e}')
-            await message.reply('Произошла ошибка при принятии дуэли. Попробуйте еще раз.')
+            logging.error(f'Error in start_duel: {e}')
+            await message.reply('Произошла ошибка при начале дуэли. Попробуйте еще раз.')
 
 # вывод статистики
 async def rating(message: types.Message):
