@@ -1,9 +1,10 @@
 import logging
 import asyncpg
 from aiogram import Bot, Dispatcher, types
-from aiogram.types import BotCommand, FSInputFile, InputMediaAnimation
+from aiogram.types import BotCommand, FSInputFile, InputMediaAnimation, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from aiogram.filters import Command
 from aiogram.enums import ParseMode
+from aiogram.filters.callback_data import CallbackData
 from datetime import datetime, timedelta
 import random
 import asyncio
@@ -27,6 +28,12 @@ logging.basicConfig(level=logging.INFO)
 bot = Bot(token=API_TOKEN)
 dp = Dispatcher()
 pool = None
+
+# класс для сallback событий выбора оружия
+class WeaponCallbackData(CallbackData, prefix="choose_weapon"):
+    weapon: str
+    user_id: int
+    duel_id: int
 
 # функция для подключения к базе данных
 async def create_db_pool():
@@ -244,11 +251,62 @@ async def accept_duel_command(message: types.Message):
                     user_id, chat_id, duel_info['id']
                 )
 
-            await start_duel(message, duel_info, user_id, chat_id)
+            # начинаем выбор оружия с вызвавшего на дуэль
+            await choose_weapon(message, duel_info, duel_info['challenger_id'])
 
         except Exception as e:
             logging.error(f'Error in accept_duel_command: {e}')
             await message.reply('Произошла ошибка при принятии дуэли. Попробуйте еще раз.')
+
+# функция для отправки кнопок с выбором оружия
+async def choose_weapon(message: types.Message, duel_info, user_to_choose):
+    duel_id = duel_info['id']  # Получаем id текущей дуэли
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(text="Оружие 1", callback_data=WeaponCallbackData(weapon="wp1", user_id=user_to_choose, duel_id=duel_id).pack()),
+        InlineKeyboardButton(text="Оружие 2", callback_data=WeaponCallbackData(weapon="wp2", user_id=user_to_choose, duel_id=duel_id).pack()),
+        InlineKeyboardButton(text="Оружие 3", callback_data=WeaponCallbackData(weapon="wp3", user_id=user_to_choose, duel_id=duel_id).pack())
+    ]])
+    await message.answer(f"@{user_to_choose}, выбери оружие:", reply_markup=keyboard)
+
+# обработчик выбора оружия
+async def weapon_chosen(callback_query: CallbackQuery, callback_data: WeaponCallbackData):
+    user_id = callback_data.user_id
+    weapon = callback_data.weapon
+    duel_id = callback_data.duel_id  # получаем id дуэли из callback data
+    message = callback_query.message
+    chat_id = message.chat.id
+
+    # получаем информацию о дуэли по конкретному duel_id
+    async with pool.acquire() as connection:
+        duel_info = await connection.fetchrow(
+            'SELECT * FROM duel_state WHERE id = $1 AND telegram_group_id = $2', 
+            duel_id, chat_id
+        )
+
+        if not duel_info:
+            await callback_query.answer("Не найдена дуэль для этого пользователя.")
+            return
+
+        # если это оружие выбрал вызвавший на дуэль
+        if user_id == duel_info['challenger_id']:
+            await connection.execute(
+                'UPDATE duel_state SET challenger_weapon = $1 WHERE id = $2',
+                weapon, duel_info['id']
+            )
+            await callback_query.answer(f"Ты выбрал {weapon}")
+            await choose_weapon(message, duel_info, duel_info['challenged_id'])
+
+        # если это оружие выбрал вызванный на дуэль
+        elif user_id == duel_info['challenged_id']:
+            await connection.execute(
+                'UPDATE duel_state SET challenged_weapon = $1 WHERE id = $2',
+                weapon, duel_info['id']
+            )
+            await callback_query.answer(f"Ты выбрал {weapon}")
+            await callback_query.message.edit_reply_markup(reply_markup=None)
+
+            # начинаем дуэль после того, как оба игрока выбрали оружие
+            await start_duel(message, duel_info, user_id, chat_id)
 
 async def start_duel(message: types.Message, duel_info, user_id, chat_id):
     await create_db_pool()
@@ -290,7 +348,7 @@ async def start_duel(message: types.Message, duel_info, user_id, chat_id):
 
         except Exception as e:
             logging.error(f'Error in start_duel: {e}')
-            await message.reply('Произошла ошибка при начале дуэли. Попробуйте еще раз.')
+            await message.reply('Произошла ошибка в ходе дуэли. Попробуйте еще раз.')
 
 # вывод статистики
 async def rating(message: types.Message):
@@ -376,6 +434,7 @@ async def main():
     dp.message.register(duel_command, Command(commands=["duel"]))
     dp.message.register(accept_duel_command, Command(commands=["accept"]))
     dp.message.register(show_fight_stats, Command(commands=["fight_stats"]))
+    dp.callback_query.register(weapon_chosen, WeaponCallbackData.filter())
 
     await dp.start_polling(bot)
 
