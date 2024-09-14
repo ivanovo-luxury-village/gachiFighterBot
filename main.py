@@ -260,25 +260,31 @@ async def accept_duel_command(message: types.Message):
 
 # функция для отправки кнопок с выбором оружия
 async def choose_weapon(message: types.Message, duel_info, user_to_choose):
-    duel_id = duel_info['id']  # Получаем id текущей дуэли
+    duel_id = duel_info['id']
     keyboard = InlineKeyboardMarkup(inline_keyboard=[[
-        InlineKeyboardButton(text="Оружие 1", callback_data=WeaponCallbackData(weapon="wp1", user_id=user_to_choose, duel_id=duel_id).pack()),
-        InlineKeyboardButton(text="Оружие 2", callback_data=WeaponCallbackData(weapon="wp2", user_id=user_to_choose, duel_id=duel_id).pack()),
-        InlineKeyboardButton(text="Оружие 3", callback_data=WeaponCallbackData(weapon="wp3", user_id=user_to_choose, duel_id=duel_id).pack())
+        InlineKeyboardButton(text="♂ Dick", callback_data=WeaponCallbackData(weapon="Dick", user_id=user_to_choose, duel_id=duel_id).pack()),
+        InlineKeyboardButton(text="♂ Ass", callback_data=WeaponCallbackData(weapon="Ass", user_id=user_to_choose, duel_id=duel_id).pack()),
+        InlineKeyboardButton(text="♂ Finger", callback_data=WeaponCallbackData(weapon="Finger", user_id=user_to_choose, duel_id=duel_id).pack())
     ]])
 
+    # забираем username для пинга
+    async with pool.acquire() as connection:
+        username = await connection.fetchval(
+            'SELECT username FROM users WHERE id = $1 AND telegram_group_id = $2', 
+            user_to_choose, message.chat.id
+        )
+
+    # редактируем или отправляем сообщение для выбора
     if message.reply_markup:
-        # если сообщение уже есть, редактируем его
-        await message.edit_text(f"@{user_to_choose}, выбери оружие:", reply_markup=keyboard)
+        await message.edit_text(f"@{username}, выбери оружие:", reply_markup=keyboard)
     else:
-        # отправляем новое сообщение только один раз
-        await message.answer(f"@{user_to_choose}, выбери оружие:", reply_markup=keyboard)
+        await message.answer(f"@{username}, выбери оружие:", reply_markup=keyboard)
 
 # обработчик выбора оружия
 async def weapon_chosen(callback_query: CallbackQuery, callback_data: WeaponCallbackData):
-    user_id = callback_data.user_id
+    telegram_user_id = callback_query.from_user.id
     weapon = callback_data.weapon
-    duel_id = callback_data.duel_id  # получаем id дуэли из callback data
+    duel_id = callback_data.duel_id
     message = callback_query.message
     chat_id = message.chat.id
 
@@ -290,11 +296,22 @@ async def weapon_chosen(callback_query: CallbackQuery, callback_data: WeaponCall
         )
 
         if not duel_info:
-            await callback_query.answer("Не найдена дуэль для этого пользователя.")
+            await callback_query.answer("Дуэль не найдена")
             return
 
-        # если это оружие выбрал вызвавший на дуэль
-        if user_id == duel_info['challenger_id']:
+        # получаем внутренний id пользователя по его telegram_id
+        user_id = await connection.fetchval(
+            'SELECT id FROM users WHERE telegram_id = $1 AND telegram_group_id = $2', 
+            telegram_user_id, chat_id
+        )
+
+        if not user_id:
+            await callback_query.answer("Ты не зарегистрирован. Используй команду /register, чтобы зарегистрироваться.")
+            return
+
+        # проверяем, кто сейчас должен выбирать оружие
+        if duel_info['challenger_weapon'] is None and user_id == duel_info['challenger_id']:
+            # если вызвавший на дуэль выбирает оружие
             await connection.execute(
                 'UPDATE duel_state SET challenger_weapon = $1 WHERE id = $2',
                 weapon, duel_info['id']
@@ -302,8 +319,8 @@ async def weapon_chosen(callback_query: CallbackQuery, callback_data: WeaponCall
             await callback_query.answer(f"Ты выбрал {weapon}")
             await choose_weapon(message, duel_info, duel_info['challenged_id'])
 
-        # если это оружие выбрал вызванный на дуэль
-        elif user_id == duel_info['challenged_id']:
+        elif duel_info['challenger_weapon'] is not None and user_id == duel_info['challenged_id']:
+            # если вызванный на дуэль выбирает оружие
             await connection.execute(
                 'UPDATE duel_state SET challenged_weapon = $1 WHERE id = $2',
                 weapon, duel_info['id']
@@ -311,8 +328,12 @@ async def weapon_chosen(callback_query: CallbackQuery, callback_data: WeaponCall
             await callback_query.answer(f"Ты выбрал {weapon}")
             await callback_query.message.edit_reply_markup(reply_markup=None)
 
-            # начинаем дуэль после того, как оба игрока выбрали оружие
+            # начинаем дуэль после выбора оружия
             await start_duel(message, duel_info, user_id, chat_id)
+        
+        else:
+            # если это не их очередь выбирать
+            await callback_query.answer("Сейчас не твоя очередь выбирать оружие.", show_alert=True)
 
 async def start_duel(message: types.Message, duel_info, user_id, chat_id):
     await create_db_pool()
