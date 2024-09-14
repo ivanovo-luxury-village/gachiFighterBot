@@ -55,7 +55,7 @@ jobs:
           script: |
             cd /opt/gachi-fighter-bot
             echo ${{ secrets.DOCKERHUB_TOKEN }} | docker login -u ${{ secrets.DOCKERHUB_USERNAME }} --password-stdin
-            docker container rm postgres-migrator-gachi-fighter-bot
+            docker container rm postgres-migrator-gachi-fighter-bot || true
             docker compose -f docker-compose.prod.yaml pull
             docker compose -f docker-compose.prod.yaml up -d --force-recreate
             docker logout
