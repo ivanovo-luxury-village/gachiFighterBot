@@ -376,7 +376,6 @@ async def start_duel(message: types.Message, duel_info, user_id, chat_id):
             await connection.execute('UPDATE user_balance SET points = points + $1 WHERE telegram_group_id = $2 AND user_id = $3', points, chat_id, winner_id)
             await connection.execute('UPDATE user_balance SET points = points - $1 WHERE telegram_group_id = $2 AND user_id = $3', points, chat_id, loser_id)
             await connection.execute('INSERT INTO fight_history (winner_id, loser_id, points_won, points_lost, telegram_group_id) VALUES ($1, $2, $3, $3, $4)', winner_id, loser_id, points, chat_id)
-            await connection.execute('DELETE FROM duel_state WHERE telegram_group_id = $1 AND id = $2', chat_id, duel_info['id'])
 
             # получаем обновленные балансы пользователей
             winner_balance_after = await connection.fetchval(
@@ -386,11 +385,18 @@ async def start_duel(message: types.Message, duel_info, user_id, chat_id):
                 'SELECT points FROM user_balance WHERE telegram_group_id = $1 AND user_id = $2', chat_id, loser_id
             )
 
+            # получаем оружие напрямую из базы данных (duel_state)
+            weapons_state = await connection.fetchrow(
+                'SELECT challenger_weapon, challenged_weapon FROM duel_state WHERE id = $1 AND telegram_group_id = $2', 
+                duel_info['id'], chat_id
+            )
+
             # получаем имена пользователей для вывода и выбранное оружие
             winner_name = await connection.fetchval('SELECT username FROM users WHERE telegram_group_id = $1 AND id = $2', chat_id, winner_id)
             loser_name = await connection.fetchval('SELECT username FROM users WHERE telegram_group_id = $1 AND id = $2', chat_id, loser_id)
-            winner_weapon = duel_info['challenger_weapon'] if winner_id == duel_info['challenger_id'] else duel_info['challenged_weapon']
-            loser_weapon = duel_info['challenged_weapon'] if loser_id == duel_info['challenged_id'] else duel_info['challenger_weapon']
+
+            winner_weapon = weapons_state['challenger_weapon'] if winner_id == duel_info['challenger_id'] else weapons_state['challenged_weapon']
+            loser_weapon = weapons_state['challenged_weapon'] if loser_id == duel_info['challenged_id'] else weapons_state['challenger_weapon']
 
             # выбираем случайное сообщение из таблицы messages
             fight_result_message_template = await connection.fetchval(
@@ -399,10 +405,11 @@ async def start_duel(message: types.Message, duel_info, user_id, chat_id):
 
             # заменяем плейсхолдеры на реальные данные
             fight_result_message = fight_result_message_template.format_map(SafeDict(
-                winner_name=f"@{winner_name}",
-                loser_name=f"@{loser_name}",
+                winner_name=winner_name,
+                loser_name=loser_name,
                 winner_weapon=winner_weapon,
-                loser_weapon=loser_weapon
+                loser_weapon=loser_weapon,
+                points=points
             ))
 
             # формируем сообщение о результате дуэли
@@ -419,6 +426,8 @@ async def start_duel(message: types.Message, duel_info, user_id, chat_id):
 
             # отправляем случайную гифку с результатом дуэли
             await bot.send_animation(chat_id, animation=FSInputFile(finished_gif), caption=result_message)
+
+            await connection.execute('DELETE FROM duel_state WHERE telegram_group_id = $1 AND id = $2', chat_id, duel_info['id'])
 
         except Exception as e:
             logging.error(f'Error in start_duel: {e}')
