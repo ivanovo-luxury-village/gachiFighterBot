@@ -326,10 +326,15 @@ async def weapon_chosen(callback_query: CallbackQuery, callback_data: WeaponCall
                 weapon, duel_info['id']
             )
             await callback_query.answer(f"Ты выбрал {weapon}")
-            await callback_query.message.edit_reply_markup(reply_markup=None)
+
+            # создаем новое сообщение о начале дуэли
+            new_message = await bot.send_message(chat_id, 'Борьба началась!')
+
+            # удаляем сообщение с кнопками выбора оружия
+            await bot.delete_message(chat_id=chat_id, message_id=message.message_id)
 
             # начинаем дуэль после выбора оружия
-            await start_duel(message, duel_info, user_id, chat_id)
+            await start_duel(new_message, duel_info, user_id, chat_id)
         
         else:
             # если это не их очередь выбирать
@@ -339,8 +344,6 @@ async def start_duel(message: types.Message, duel_info, user_id, chat_id):
     await create_db_pool()
     async with pool.acquire() as connection:    
         try:
-            await message.reply('Борьба началась!')
-
             # отправка GIF-изображений
             gif_folder_path = './gifs'
             all_gifs = [os.path.join(gif_folder_path, file) for file in os.listdir(gif_folder_path) if file.endswith('.gif')]
