@@ -17,7 +17,7 @@ load_dotenv()
 API_TOKEN = os.getenv('TOKEN')
 
 # настройки подключения к базе данных
-DB_HOST = os.getenv('POSTGRES_DB_HOST')
+DB_HOST = os.getenv('POSTGRES_HOST')
 DB_USER = os.getenv('POSTGRES_USER')
 DB_PASSWORD = os.getenv('POSTGRES_PASSWORD')
 DB_NAME = os.getenv('POSTGRES_DB')
