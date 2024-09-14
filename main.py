@@ -373,8 +373,26 @@ async def start_duel(message: types.Message, duel_info, user_id, chat_id):
             await connection.execute('INSERT INTO fight_history (winner_id, loser_id, points_won, points_lost, telegram_group_id) VALUES ($1, $2, $3, $3, $4)', winner_id, loser_id, points, chat_id)
             await connection.execute('DELETE FROM duel_state WHERE telegram_group_id = $1 AND id = $2', chat_id, duel_info['id'])
 
+            # получаем обновленные балансы пользователей
+            winner_balance_after = await connection.fetchval(
+                'SELECT points FROM user_balance WHERE telegram_group_id = $1 AND user_id = $2', chat_id, winner_id
+            )
+            loser_balance_after = await connection.fetchval(
+                'SELECT points FROM user_balance WHERE telegram_group_id = $1 AND user_id = $2', chat_id, loser_id
+            )
+
+            # получаем имена пользователей для вывода
             winner_name = await connection.fetchval('SELECT username FROM users WHERE telegram_group_id = $1 AND id = $2', chat_id, winner_id)
-            await message.reply(f'Победитель дуэли: @{winner_name}. Выиграно {points} ♂️semen!')
+            loser_name = await connection.fetchval('SELECT username FROM users WHERE telegram_group_id = $1 AND id = $2', chat_id, loser_id)
+
+            # формируем сообщение о результате дуэли
+            result_message = (
+                f'@{winner_name} - {winner_balance_after} (+{points}) мл.\n'
+                f'@{loser_name} - {loser_balance_after} (-{points}) мл.'
+            )
+
+            # отправляем сообщение с результатами
+            await message.reply(result_message)
 
         except Exception as e:
             logging.error(f'Error in start_duel: {e}')
