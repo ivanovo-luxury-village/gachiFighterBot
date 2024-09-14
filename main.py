@@ -1,9 +1,10 @@
 import logging
 import asyncpg
 from aiogram import Bot, Dispatcher, types
-from aiogram.types import BotCommand, FSInputFile, InputMediaAnimation
+from aiogram.types import BotCommand, FSInputFile, InputMediaAnimation, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from aiogram.filters import Command
 from aiogram.enums import ParseMode
+from aiogram.filters.callback_data import CallbackData
 from datetime import datetime, timedelta
 import random
 import asyncio
@@ -27,6 +28,17 @@ logging.basicConfig(level=logging.INFO)
 bot = Bot(token=API_TOKEN)
 dp = Dispatcher()
 pool = None
+
+# класс для сallback событий выбора оружия
+class WeaponCallbackData(CallbackData, prefix="choose_weapon"):
+    weapon: str
+    user_id: int
+    duel_id: int
+
+# класс для безопасного форматирования
+class SafeDict(dict):
+    def __missing__(self, key):
+        return f'{{{key}}}'  # если плейсхолдер отсутствует, возвращаем его в исходном виде
 
 # функция для подключения к базе данных
 async def create_db_pool():
@@ -118,7 +130,7 @@ async def duel_command(message: types.Message):
                 logging.info(f'Challenged ID from reply: {challenged_id}')
 
                 if not challenged_id:
-                    await message.reply('Пользователь, которому ты бросил вызов, не зарегистрирован в игре.')
+                    await message.reply('Пользователь, которому ты бросил вызов, не зарегистрирован.')
                     logging.info('Challenged user is not registered.')
                     return
 
@@ -140,7 +152,7 @@ async def duel_command(message: types.Message):
                 logging.info(f'Challenged ID from mention: {challenged_id}')
 
                 if not challenged_id:
-                    await message.reply(f'Пользователь @{mentioned_username} не зарегистрирован в игре.')
+                    await message.reply(f'Пользователь @{mentioned_username} не зарегистрирован.')
                     return
 
                 # проверка, чтобы пользователь не мог вызвать сам себя на дуэль
@@ -198,7 +210,7 @@ async def accept_duel_command(message: types.Message):
             )
 
             if not user_id:
-                await message.reply('Ты не зарегистрирован в игре. Используй команду /register, чтобы зарегистрироваться.')
+                await message.reply('Ты не зарегистрирован. Используй команду /register, чтобы зарегистрироваться.')
                 return
             
             current_time = datetime.utcnow()
@@ -244,10 +256,101 @@ async def accept_duel_command(message: types.Message):
                     user_id, chat_id, duel_info['id']
                 )
 
-            await message.reply('Борьба началась!')
+            # начинаем выбор оружия с вызвавшего на дуэль
+            await choose_weapon(message, duel_info, duel_info['challenger_id'])
 
+        except Exception as e:
+            logging.error(f'Error in accept_duel_command: {e}')
+            await message.reply('Произошла ошибка при принятии дуэли. Попробуйте еще раз.')
+
+# функция для отправки кнопок с выбором оружия
+async def choose_weapon(message: types.Message, duel_info, user_to_choose):
+    duel_id = duel_info['id']
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(text="♂ Dick", callback_data=WeaponCallbackData(weapon="Dick", user_id=user_to_choose, duel_id=duel_id).pack()),
+        InlineKeyboardButton(text="♂ Ass", callback_data=WeaponCallbackData(weapon="Ass", user_id=user_to_choose, duel_id=duel_id).pack()),
+        InlineKeyboardButton(text="♂ Finger", callback_data=WeaponCallbackData(weapon="Finger", user_id=user_to_choose, duel_id=duel_id).pack())
+    ]])
+
+    # забираем username для пинга
+    async with pool.acquire() as connection:
+        username = await connection.fetchval(
+            'SELECT username FROM users WHERE id = $1 AND telegram_group_id = $2', 
+            user_to_choose, message.chat.id
+        )
+
+    # редактируем или отправляем сообщение для выбора
+    if message.reply_markup:
+        await message.edit_text(f"@{username}, выбери оружие:", reply_markup=keyboard)
+    else:
+        await message.answer(f"@{username}, выбери оружие:", reply_markup=keyboard)
+
+# обработчик выбора оружия
+async def weapon_chosen(callback_query: CallbackQuery, callback_data: WeaponCallbackData):
+    telegram_user_id = callback_query.from_user.id
+    weapon = callback_data.weapon
+    duel_id = callback_data.duel_id
+    message = callback_query.message
+    chat_id = message.chat.id
+
+    # получаем информацию о дуэли по конкретному duel_id
+    async with pool.acquire() as connection:
+        duel_info = await connection.fetchrow(
+            'SELECT * FROM duel_state WHERE id = $1 AND telegram_group_id = $2', 
+            duel_id, chat_id
+        )
+
+        if not duel_info:
+            await callback_query.answer("Дуэль не найдена")
+            return
+
+        # получаем внутренний id пользователя по его telegram_id
+        user_id = await connection.fetchval(
+            'SELECT id FROM users WHERE telegram_id = $1 AND telegram_group_id = $2', 
+            telegram_user_id, chat_id
+        )
+
+        if not user_id:
+            await callback_query.answer("Ты не зарегистрирован. Используй команду /register, чтобы зарегистрироваться.")
+            return
+
+        # проверяем, кто сейчас должен выбирать оружие
+        if duel_info['challenger_weapon'] is None and user_id == duel_info['challenger_id']:
+            # если вызвавший на дуэль выбирает оружие
+            await connection.execute(
+                'UPDATE duel_state SET challenger_weapon = $1 WHERE id = $2',
+                weapon, duel_info['id']
+            )
+            await callback_query.answer(f"Ты выбрал {weapon}")
+            await choose_weapon(message, duel_info, duel_info['challenged_id'])
+
+        elif duel_info['challenger_weapon'] is not None and user_id == duel_info['challenged_id']:
+            # если вызванный на дуэль выбирает оружие
+            await connection.execute(
+                'UPDATE duel_state SET challenged_weapon = $1 WHERE id = $2',
+                weapon, duel_info['id']
+            )
+            await callback_query.answer(f"Ты выбрал {weapon}")
+
+            # создаем новое сообщение о начале дуэли
+            new_message = await bot.send_message(chat_id, 'Борьба началась!')
+
+            # удаляем сообщение с кнопками выбора оружия
+            await bot.delete_message(chat_id=chat_id, message_id=message.message_id)
+
+            # начинаем дуэль после выбора оружия
+            await start_duel(new_message, duel_info, user_id, chat_id)
+        
+        else:
+            # если это не их очередь выбирать
+            await callback_query.answer("Сейчас не твоя очередь выбирать оружие.", show_alert=True)
+
+async def start_duel(message: types.Message, duel_info, user_id, chat_id):
+    await create_db_pool()
+    async with pool.acquire() as connection:    
+        try:
             # отправка GIF-изображений
-            gif_folder_path = './gifs'
+            gif_folder_path = './gifs/duel_progress'
             all_gifs = [os.path.join(gif_folder_path, file) for file in os.listdir(gif_folder_path) if file.endswith('.gif')]
             gif_files = random.sample(all_gifs, 3)
 
@@ -273,14 +376,62 @@ async def accept_duel_command(message: types.Message):
             await connection.execute('UPDATE user_balance SET points = points + $1 WHERE telegram_group_id = $2 AND user_id = $3', points, chat_id, winner_id)
             await connection.execute('UPDATE user_balance SET points = points - $1 WHERE telegram_group_id = $2 AND user_id = $3', points, chat_id, loser_id)
             await connection.execute('INSERT INTO fight_history (winner_id, loser_id, points_won, points_lost, telegram_group_id) VALUES ($1, $2, $3, $3, $4)', winner_id, loser_id, points, chat_id)
+
+            # получаем обновленные балансы пользователей
+            winner_balance_after = await connection.fetchval(
+                'SELECT points FROM user_balance WHERE telegram_group_id = $1 AND user_id = $2', chat_id, winner_id
+            )
+            loser_balance_after = await connection.fetchval(
+                'SELECT points FROM user_balance WHERE telegram_group_id = $1 AND user_id = $2', chat_id, loser_id
+            )
+
+            # получаем оружие напрямую из базы данных (duel_state)
+            weapons_state = await connection.fetchrow(
+                'SELECT challenger_weapon, challenged_weapon FROM duel_state WHERE id = $1 AND telegram_group_id = $2', 
+                duel_info['id'], chat_id
+            )
+
+            # получаем имена пользователей для вывода и выбранное оружие
+            winner_name = await connection.fetchval('SELECT username FROM users WHERE telegram_group_id = $1 AND id = $2', chat_id, winner_id)
+            loser_name = await connection.fetchval('SELECT username FROM users WHERE telegram_group_id = $1 AND id = $2', chat_id, loser_id)
+
+            winner_weapon = weapons_state['challenger_weapon'] if winner_id == duel_info['challenger_id'] else weapons_state['challenged_weapon']
+            loser_weapon = weapons_state['challenged_weapon'] if loser_id == duel_info['challenged_id'] else weapons_state['challenger_weapon']
+
+            # выбираем случайное сообщение из таблицы messages
+            fight_result_message_template = await connection.fetchval(
+                "SELECT message_text FROM messages WHERE message_type = 'FIGHT_RESULT' ORDER BY random() LIMIT 1"
+            )
+
+            # заменяем плейсхолдеры на реальные данные
+            fight_result_message = fight_result_message_template.format_map(SafeDict(
+                winner_name=winner_name,
+                loser_name=loser_name,
+                winner_weapon=winner_weapon,
+                loser_weapon=loser_weapon,
+                points=points
+            ))
+
+            # формируем сообщение о результате дуэли
+            result_message = (
+                f'@{winner_name} - {winner_balance_after} (+{points}) мл.\n'
+                f'@{loser_name} - {loser_balance_after} (-{points}) мл.\n\n'
+                f'{fight_result_message}'
+            )
+
+            # выбираем случайную гифку для завершения дуэли
+            finished_gif_folder = './gifs/duel_finished'
+            finished_gifs = [os.path.join(finished_gif_folder, file) for file in os.listdir(finished_gif_folder) if file.endswith('.gif')]
+            finished_gif = random.choice(finished_gifs)
+
+            # отправляем случайную гифку с результатом дуэли
+            await bot.send_animation(chat_id, animation=FSInputFile(finished_gif), caption=result_message)
+
             await connection.execute('DELETE FROM duel_state WHERE telegram_group_id = $1 AND id = $2', chat_id, duel_info['id'])
 
-            winner_name = await connection.fetchval('SELECT username FROM users WHERE telegram_group_id = $1 AND id = $2', chat_id, winner_id)
-            await message.reply(f'Победитель дуэли: @{winner_name}. Выиграно {points} ♂️semen!')
-
         except Exception as e:
-            logging.error(f'Error in accept_duel_command: {e}')
-            await message.reply('Произошла ошибка при принятии дуэли. Попробуйте еще раз.')
+            logging.error(f'Error in start_duel: {e}')
+            await message.reply('Произошла ошибка в ходе дуэли. Попробуйте еще раз.')
 
 # вывод статистики
 async def rating(message: types.Message):
@@ -366,6 +517,7 @@ async def main():
     dp.message.register(duel_command, Command(commands=["duel"]))
     dp.message.register(accept_duel_command, Command(commands=["accept"]))
     dp.message.register(show_fight_stats, Command(commands=["fight_stats"]))
+    dp.callback_query.register(weapon_chosen, WeaponCallbackData.filter())
 
     await dp.start_polling(bot)
 
