@@ -35,6 +35,11 @@ class WeaponCallbackData(CallbackData, prefix="choose_weapon"):
     user_id: int
     duel_id: int
 
+# класс для безопасного форматирования
+class SafeDict(dict):
+    def __missing__(self, key):
+        return f'{{{key}}}'  # если плейсхолдер отсутствует, возвращаем его в исходном виде
+
 # функция для подключения к базе данных
 async def create_db_pool():
     global pool
@@ -381,14 +386,30 @@ async def start_duel(message: types.Message, duel_info, user_id, chat_id):
                 'SELECT points FROM user_balance WHERE telegram_group_id = $1 AND user_id = $2', chat_id, loser_id
             )
 
-            # получаем имена пользователей для вывода
+            # получаем имена пользователей для вывода и выбранное оружие
             winner_name = await connection.fetchval('SELECT username FROM users WHERE telegram_group_id = $1 AND id = $2', chat_id, winner_id)
             loser_name = await connection.fetchval('SELECT username FROM users WHERE telegram_group_id = $1 AND id = $2', chat_id, loser_id)
+            winner_weapon = duel_info['challenger_weapon'] if winner_id == duel_info['challenger_id'] else duel_info['challenged_weapon']
+            loser_weapon = duel_info['challenged_weapon'] if loser_id == duel_info['challenged_id'] else duel_info['challenger_weapon']
+
+            # выбираем случайное сообщение из таблицы messages
+            fight_result_message_template = await connection.fetchval(
+                "SELECT message_text FROM messages WHERE message_type = 'FIGHT_RESULT' ORDER BY random() LIMIT 1"
+            )
+
+            # заменяем плейсхолдеры на реальные данные
+            fight_result_message = fight_result_message_template.format_map(SafeDict(
+                winner_name=f"@{winner_name}",
+                loser_name=f"@{loser_name}",
+                winner_weapon=winner_weapon,
+                loser_weapon=loser_weapon
+            ))
 
             # формируем сообщение о результате дуэли
             result_message = (
                 f'@{winner_name} - {winner_balance_after} (+{points}) мл.\n'
-                f'@{loser_name} - {loser_balance_after} (-{points}) мл.'
+                f'@{loser_name} - {loser_balance_after} (-{points}) мл.\n\n'
+                f'{fight_result_message}'
             )
 
             # выбираем случайную гифку для завершения дуэли
