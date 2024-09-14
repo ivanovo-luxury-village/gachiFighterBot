@@ -125,7 +125,7 @@ async def duel_command(message: types.Message):
                 logging.info(f'Challenged ID from reply: {challenged_id}')
 
                 if not challenged_id:
-                    await message.reply('Пользователь, которому ты бросил вызов, не зарегистрирован в игре.')
+                    await message.reply('Пользователь, которому ты бросил вызов, не зарегистрирован.')
                     logging.info('Challenged user is not registered.')
                     return
 
@@ -147,7 +147,7 @@ async def duel_command(message: types.Message):
                 logging.info(f'Challenged ID from mention: {challenged_id}')
 
                 if not challenged_id:
-                    await message.reply(f'Пользователь @{mentioned_username} не зарегистрирован в игре.')
+                    await message.reply(f'Пользователь @{mentioned_username} не зарегистрирован.')
                     return
 
                 # проверка, чтобы пользователь не мог вызвать сам себя на дуэль
@@ -205,7 +205,7 @@ async def accept_duel_command(message: types.Message):
             )
 
             if not user_id:
-                await message.reply('Ты не зарегистрирован в игре. Используй команду /register, чтобы зарегистрироваться.')
+                await message.reply('Ты не зарегистрирован. Используй команду /register, чтобы зарегистрироваться.')
                 return
             
             current_time = datetime.utcnow()

@@ -1,8 +1,8 @@
 --liquibase formatted sql
 --changeset naensamble:weapon
 ALTER TABLE duel_state
-ADD COLUMN challenged_weapon TEXT, 
-ADD COLUMN challenger_weapon TEXT
+ADD COLUMN challenger_weapon TEXT,
+ADD COLUMN challenged_weapon TEXT 
 ;
 ALTER TABLE fight_history
 ADD COLUMN winner_weapon TEXT, 
