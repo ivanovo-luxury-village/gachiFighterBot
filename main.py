@@ -345,7 +345,7 @@ async def start_duel(message: types.Message, duel_info, user_id, chat_id):
     async with pool.acquire() as connection:    
         try:
             # отправка GIF-изображений
-            gif_folder_path = './gifs'
+            gif_folder_path = './gifs/duel_progress'
             all_gifs = [os.path.join(gif_folder_path, file) for file in os.listdir(gif_folder_path) if file.endswith('.gif')]
             gif_files = random.sample(all_gifs, 3)
 
@@ -391,8 +391,13 @@ async def start_duel(message: types.Message, duel_info, user_id, chat_id):
                 f'@{loser_name} - {loser_balance_after} (-{points}) мл.'
             )
 
-            # отправляем сообщение с результатами
-            await message.reply(result_message)
+            # выбираем случайную гифку для завершения дуэли
+            finished_gif_folder = './gifs/duel_finished'
+            finished_gifs = [os.path.join(finished_gif_folder, file) for file in os.listdir(finished_gif_folder) if file.endswith('.gif')]
+            finished_gif = random.choice(finished_gifs)
+
+            # отправляем случайную гифку с результатом дуэли
+            await bot.send_animation(chat_id, animation=FSInputFile(finished_gif), caption=result_message)
 
         except Exception as e:
             logging.error(f'Error in start_duel: {e}')
