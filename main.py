@@ -1,5 +1,4 @@
 import os
-import sys
 import logging
 import asyncpg
 import random
@@ -44,6 +43,8 @@ APP_PORT = os.getenv("APP_PORT")
 WEBHOOK_PATH = os.getenv("WEBHOOK_PATH")
 WEBHOOK_HOST = os.getenv("WEBHOOK_HOST")
 WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET")
+
+WEBHOOK_URL = f"{WEBHOOK_HOST}{WEBHOOK_PATH}"
 
 # инициализация логгера
 logger = logging.getLogger(__name__)
@@ -763,22 +764,93 @@ async def set_commands():
     dp.callback_query.register(weapon_chosen, WeaponCallbackData.filter())
 
 
+class InitException(Exception):
+    pass
+
+
+async def increase_bot_instance_count() -> int:
+    await create_db_pool()
+    async with pool.acquire() as connection:
+        async with connection.transaction():
+            bot_instance = await connection.fetchrow(
+                """
+                SELECT * FROM bot_instance FOR UPDATE;
+                """,
+            )
+            new_bot_instance_count = bot_instance["bot_instance_count"] + 1
+
+            if (
+                new_bot_instance_count > 1
+                and bot_instance["webhook_url"] != WEBHOOK_URL
+            ):
+                raise InitException("Webhook url should not change!")
+
+            await connection.execute(
+                """
+                UPDATE bot_instance
+                SET bot_instance_count = $1,
+                    updated_at = NOW(),
+                    webhook_url = $2;
+                """,
+                new_bot_instance_count,
+                WEBHOOK_URL,
+            )
+
+            return new_bot_instance_count
+
+
+async def decrease_bot_instance_count() -> int:
+    await create_db_pool()
+    async with pool.acquire() as connection:
+        async with connection.transaction():
+            bot_instance = await connection.fetchrow(
+                """
+                SELECT * FROM bot_instance FOR UPDATE;
+                """,
+            )
+            new_bot_instance_count = bot_instance["bot_instance_count"] - 1
+            await connection.execute(
+                """
+                UPDATE bot_instance
+                SET bot_instance_count = $1, updated_at = NOW()
+                """,
+                new_bot_instance_count,
+            )
+
+            return new_bot_instance_count
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    await bot.set_webhook(
-        url=f"{WEBHOOK_HOST}{WEBHOOK_PATH}",
-        secret_token=WEBHOOK_SECRET,
-        allowed_updates=dp.resolve_used_update_types(),
-        drop_pending_updates=True,
-    )
+    bot_instance_count = await increase_bot_instance_count()
+    logger.info(f"Bot instance count: {bot_instance_count}")
+
+    if bot_instance_count == 1:
+        await bot.set_webhook(
+            url=WEBHOOK_URL,
+            secret_token=WEBHOOK_SECRET,
+            allowed_updates=dp.resolve_used_update_types(),
+            drop_pending_updates=True,
+        )
+        await set_commands()
+
     webhook_info = await bot.get_webhook_info()
     logger.info(f"Webhook url: {webhook_info.url}")
-    await set_commands()
     yield
-    await bot.delete_webhook()
+
+    bot_instance_count = await decrease_bot_instance_count()
+    if bot_instance_count == 0:
+        await bot.delete_webhook()
+
+    logger.info("Lifecycle shutdown successful!")
 
 
 app = FastAPI(lifespan=lifespan, title="API")
+
+
+@app.get("/healthz")
+def get_health() -> str:
+    return "up and running!"
 
 
 @app.post("/webhook")
@@ -788,4 +860,10 @@ async def webhook(request: Request) -> None:
 
 if __name__ == "__main__":
     logger.info("API is starting up")
-    uvicorn.run(app, host=APP_HOST, port=int(APP_PORT), log_config="./log_conf.yaml")
+    uvicorn.run(
+        app,
+        host=APP_HOST,
+        port=int(APP_PORT),
+        log_config="./log_conf.yaml",
+        timeout_graceful_shutdown=30,
+    )

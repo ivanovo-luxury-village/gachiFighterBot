@@ -32,6 +32,8 @@ jobs:
             pgadmin_email: ${{ secrets.PGADMIN_EMAIL }}
             pgadmin_password: ${{ secrets.PGADMIN_PASSWORD }}
             token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+            webhook_secret: ${{ secrets.TELEGRAM_WEBHOOK_SECRET }}
+            webhook_host: ${{ secrets.TELEGRAM_WEBHOOK_HOST }}
       - name: Persist rendered templates
         run: |-
           echo '${{ steps.render_compose_template.outputs.result }}' > docker-compose.prod.yaml
