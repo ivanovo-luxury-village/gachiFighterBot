@@ -281,7 +281,7 @@ async def duel_command(message: types.Message):
                 await bot.send_photo(
                     chat_id=chat_id,
                     photo=image,
-                    caption="Я новый *♂dungeon master♂*! Кто не согласен, отзовись или молчи вечно! /accept.",
+                    caption="Я новый *♂dungeon master♂*\! Кто не согласен, отзовись или молчи вечно\! /accept\.",
                     parse_mode="MarkdownV2",
                 )
 
