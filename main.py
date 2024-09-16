@@ -743,17 +743,18 @@ async def show_fight_stats(message: types.Message):
             await message.reply(stats_message)
 
 
+commands = [
+    BotCommand(command="pidor", description="Выбрать пидора дня"),
+    BotCommand(command="register", description="Зарегистрироваться"),
+    BotCommand(command="rating", description="Рейтинг пидорасов"),
+    BotCommand(command="duel", description="Вызвать побороться"),
+    BotCommand(command="accept", description="Принять бой"),
+    BotCommand(command="fight_stats", description="Статистика боев"),
+]
+
+
 async def set_commands():
-    await bot.set_my_commands(
-        [
-            BotCommand(command="pidor", description="Выбрать пидора дня"),
-            BotCommand(command="register", description="Зарегистрироваться"),
-            BotCommand(command="rating", description="Рейтинг пидорасов"),
-            BotCommand(command="duel", description="Вызвать побороться"),
-            BotCommand(command="accept", description="Принять бой"),
-            BotCommand(command="fight_stats", description="Статистика боев"),
-        ]
-    )
+    await bot.set_my_commands(commands)
 
     dp.message.register(register_user, Command(commands=["register"]))
     dp.message.register(choose_pidor_of_the_day, Command(commands=["pidor"]))
@@ -764,84 +765,24 @@ async def set_commands():
     dp.callback_query.register(weapon_chosen, WeaponCallbackData.filter())
 
 
-class InitException(Exception):
-    pass
-
-
-async def increase_bot_instance_count() -> int:
-    await create_db_pool()
-    async with pool.acquire() as connection:
-        async with connection.transaction():
-            bot_instance = await connection.fetchrow(
-                """
-                SELECT * FROM bot_instance FOR UPDATE;
-                """,
-            )
-            new_bot_instance_count = bot_instance["bot_instance_count"] + 1
-
-            if (
-                new_bot_instance_count > 1
-                and bot_instance["webhook_url"] != WEBHOOK_URL
-            ):
-                raise InitException("Webhook url should not change!")
-
-            await connection.execute(
-                """
-                UPDATE bot_instance
-                SET bot_instance_count = $1,
-                    updated_at = NOW(),
-                    webhook_url = $2;
-                """,
-                new_bot_instance_count,
-                WEBHOOK_URL,
-            )
-
-            return new_bot_instance_count
-
-
-async def decrease_bot_instance_count() -> int:
-    await create_db_pool()
-    async with pool.acquire() as connection:
-        async with connection.transaction():
-            bot_instance = await connection.fetchrow(
-                """
-                SELECT * FROM bot_instance FOR UPDATE;
-                """,
-            )
-            new_bot_instance_count = bot_instance["bot_instance_count"] - 1
-            await connection.execute(
-                """
-                UPDATE bot_instance
-                SET bot_instance_count = $1, updated_at = NOW()
-                """,
-                new_bot_instance_count,
-            )
-
-            return new_bot_instance_count
-
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    bot_instance_count = await increase_bot_instance_count()
-    logger.info(f"Bot instance count: {bot_instance_count}")
-
-    if bot_instance_count == 1:
+    webhook_info = await bot.get_webhook_info()
+    if webhook_info.url != WEBHOOK_URL:
         await bot.set_webhook(
             url=WEBHOOK_URL,
             secret_token=WEBHOOK_SECRET,
             allowed_updates=dp.resolve_used_update_types(),
             drop_pending_updates=True,
         )
+
+    existing_commands = await bot.get_my_commands()
+    if len(existing_commands) != len(commands):
         await set_commands()
 
-    webhook_info = await bot.get_webhook_info()
-    logger.info(f"Webhook url: {webhook_info.url}")
+    logger.info(f"Webhook url: {WEBHOOK_URL}")
+    logger.info(f"Commands count: {len(commands)}")
     yield
-
-    bot_instance_count = await decrease_bot_instance_count()
-    if bot_instance_count == 0:
-        await bot.delete_webhook()
-
     logger.info("Lifecycle shutdown successful!")
 
 
