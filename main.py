@@ -767,21 +767,16 @@ async def set_commands():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    await bot.set_webhook(
+        url=WEBHOOK_URL,
+        secret_token=WEBHOOK_SECRET,
+        allowed_updates=dp.resolve_used_update_types(),
+        drop_pending_updates=True,
+    )
+    await set_commands()
+
     webhook_info = await bot.get_webhook_info()
-    if webhook_info.url != WEBHOOK_URL:
-        await bot.set_webhook(
-            url=WEBHOOK_URL,
-            secret_token=WEBHOOK_SECRET,
-            allowed_updates=dp.resolve_used_update_types(),
-            drop_pending_updates=True,
-        )
-
-    existing_commands = await bot.get_my_commands()
-    if len(existing_commands) != len(commands):
-        await set_commands()
-
-    logger.info(f"Webhook url: {WEBHOOK_URL}")
-    logger.info(f"Commands count: {len(commands)}")
+    logger.info(f"Webhook url: {webhook_info.url}")
     yield
     logger.info("Lifecycle shutdown successful!")
 
