@@ -1,33 +1,59 @@
+import os
 import logging
 import asyncpg
+import random
+import asyncio
+import uvicorn
+
 from aiogram import Bot, Dispatcher, types
-from aiogram.types import BotCommand, FSInputFile, InputMediaAnimation, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
+from aiogram.types import (
+    BotCommand,
+    FSInputFile,
+    InputMediaAnimation,
+    InlineKeyboardMarkup,
+    InlineKeyboardButton,
+    CallbackQuery,
+)
+from contextlib import asynccontextmanager
 from aiogram.filters import Command
 from aiogram.enums import ParseMode
 from aiogram.filters.callback_data import CallbackData
 from datetime import datetime, timedelta
-import random
-import asyncio
 from dotenv import load_dotenv
-import os
+from fastapi import FastAPI
+from fastapi.requests import Request
+from contextlib import asynccontextmanager
+
 
 load_dotenv()
 
 # токен для бота
-API_TOKEN = os.getenv('TOKEN')
+API_TOKEN = os.getenv("TOKEN")
 
 # настройки подключения к базе данных
-DB_HOST = os.getenv('POSTGRES_HOST')
-DB_USER = os.getenv('POSTGRES_USER')
-DB_PASSWORD = os.getenv('POSTGRES_PASSWORD')
-DB_NAME = os.getenv('POSTGRES_DB')
-DB_PORT = os.getenv('POSTGRES_PORT')
+DB_HOST = os.getenv("POSTGRES_DB_HOST")
+DB_USER = os.getenv("POSTGRES_USER")
+DB_PASSWORD = os.getenv("POSTGRES_PASSWORD")
+DB_NAME = os.getenv("POSTGRES_DB")
+DB_PORT = os.getenv("POSTGRES_PORT")
+
+APP_HOST = os.getenv("APP_HOST")
+APP_PORT = os.getenv("APP_PORT")
+
+WEBHOOK_PATH = os.getenv("WEBHOOK_PATH")
+WEBHOOK_HOST = os.getenv("WEBHOOK_HOST")
+WEBHOOK_SECRET = os.getenv("WEBHOOK_SECRET")
+
+WEBHOOK_URL = f"{WEBHOOK_HOST}{WEBHOOK_PATH}"
+
+# инициализация логгера
+logger = logging.getLogger(__name__)
 
 # инициализация бота и диспетчера
-logging.basicConfig(level=logging.INFO)
 bot = Bot(token=API_TOKEN)
 dp = Dispatcher()
 pool = None
+
 
 # класс для сallback событий выбора оружия
 class WeaponCallbackData(CallbackData, prefix="choose_weapon"):
@@ -35,22 +61,34 @@ class WeaponCallbackData(CallbackData, prefix="choose_weapon"):
     user_id: int
     duel_id: int
 
+
 # класс для безопасного форматирования
 class SafeDict(dict):
     def __missing__(self, key):
-        return f'{{{key}}}'  # если плейсхолдер отсутствует, возвращаем его в исходном виде
+        return (
+            f"{{{key}}}"  # если плейсхолдер отсутствует, возвращаем его в исходном виде
+        )
+
 
 # функция для подключения к базе данных
 async def create_db_pool():
     global pool
     if pool is None:
-        pool = await asyncpg.create_pool(user=DB_USER, password=DB_PASSWORD, database=DB_NAME, host=DB_HOST, port=DB_PORT)
+        pool = await asyncpg.create_pool(
+            user=DB_USER,
+            password=DB_PASSWORD,
+            database=DB_NAME,
+            host=DB_HOST,
+            port=DB_PORT,
+        )
+
 
 # функция для отправки сообщений с задержкой
 async def send_messages_with_delay(chat_id: int, messages: list, delay: float):
     for message in messages:
         await bot.send_message(chat_id, message)
         await asyncio.sleep(delay)
+
 
 # регистрация нового пользователя
 async def register_user(message: types.Message):
@@ -60,15 +98,27 @@ async def register_user(message: types.Message):
 
     await create_db_pool()
     async with pool.acquire() as connection:
-        existing_user = await connection.fetchval('SELECT id FROM users WHERE telegram_group_id = $1 AND telegram_id = $2', chat_id, user_id)
+        existing_user = await connection.fetchval(
+            "SELECT id FROM users WHERE telegram_group_id = $1 AND telegram_id = $2",
+            chat_id,
+            user_id,
+        )
         if existing_user:
-            await message.reply('Ты уже зарегистрирован.')
+            await message.reply("Ты уже зарегистрирован.")
         else:
             new_user_id = await connection.fetchval(
-                'INSERT INTO users (telegram_group_id, telegram_id, username) VALUES ($1, $2, $3) RETURNING id', chat_id, user_id, username
+                "INSERT INTO users (telegram_group_id, telegram_id, username) VALUES ($1, $2, $3) RETURNING id",
+                chat_id,
+                user_id,
+                username,
             )
-            await connection.execute('INSERT INTO user_balance (telegram_group_id, user_id, points) VALUES ($1, $2, 500)', chat_id, new_user_id)
-            await message.reply('Ты успешно зарегистрирован!')
+            await connection.execute(
+                "INSERT INTO user_balance (telegram_group_id, user_id, points) VALUES ($1, $2, 500)",
+                chat_id,
+                new_user_id,
+            )
+            await message.reply("Ты успешно зарегистрирован!")
+
 
 # выбор пидора дня
 async def choose_pidor_of_the_day(message: types.Message):
@@ -78,32 +128,67 @@ async def choose_pidor_of_the_day(message: types.Message):
 
     await create_db_pool()
     async with pool.acquire() as connection:
-        fighter_today = await connection.fetchrow('SELECT user_id FROM pidor_of_the_day WHERE telegram_group_id = $1 AND chosen_at = $2', chat_id, today)
+        fighter_today = await connection.fetchrow(
+            "SELECT user_id FROM pidor_of_the_day WHERE telegram_group_id = $1 AND chosen_at = $2",
+            chat_id,
+            today,
+        )
 
         if fighter_today:
-            user = await connection.fetchrow('SELECT username FROM users WHERE telegram_group_id = $1 AND id = $2', chat_id, fighter_today['user_id'])
-            await message.reply(f'Согласно моей информации, по результатам сегодняшнего розыгрыша *пидор* дня: @{user["username"]}', parse_mode=ParseMode.MARKDOWN_V2)
+            user = await connection.fetchrow(
+                "SELECT username FROM users WHERE telegram_group_id = $1 AND id = $2",
+                chat_id,
+                fighter_today["user_id"],
+            )
+            await message.reply(
+                f'Согласно моей информации, по результатам сегодняшнего розыгрыша *пидор* дня: @{user["username"]}',
+                parse_mode=ParseMode.MARKDOWN_V2,
+            )
         else:
-            users = await connection.fetch('SELECT id, username FROM users WHERE telegram_group_id = $1', chat_id)
+            users = await connection.fetch(
+                "SELECT id, username FROM users WHERE telegram_group_id = $1", chat_id
+            )
             if not users:
-                await message.reply('Нет зарегистрированных пользователей.')
+                await message.reply("Нет зарегистрированных пользователей.")
                 return
 
             chosen_user = random.choice(users)
-            await connection.execute('INSERT INTO pidor_of_the_day (user_id, chosen_at, chosen_year, telegram_group_id) VALUES ($1, $2, $3, $4)', chosen_user['id'], today, current_year, chat_id)
-            await connection.execute('INSERT INTO statistics (user_id, chosen_count, chosen_year, telegram_group_id) VALUES ($1, 1, $2, $3) ON CONFLICT (user_id, chosen_year, telegram_group_id) DO UPDATE SET chosen_count = statistics.chosen_count + 1', chosen_user['id'], current_year, chat_id)
+            await connection.execute(
+                "INSERT INTO pidor_of_the_day (user_id, chosen_at, chosen_year, telegram_group_id) VALUES ($1, $2, $3, $4)",
+                chosen_user["id"],
+                today,
+                current_year,
+                chat_id,
+            )
+            await connection.execute(
+                "INSERT INTO statistics (user_id, chosen_count, chosen_year, telegram_group_id) VALUES ($1, 1, $2, $3) ON CONFLICT (user_id, chosen_year, telegram_group_id) DO UPDATE SET chosen_count = statistics.chosen_count + 1",
+                chosen_user["id"],
+                current_year,
+                chat_id,
+            )
 
-            scenario_id = await connection.fetchval('SELECT scenario_id FROM (SELECT DISTINCT scenario_id FROM messages WHERE message_type = $1) AS subquery ORDER BY random() LIMIT 1', 'INIT')
-            messages = await connection.fetch('SELECT message_text FROM messages WHERE message_type = $1 AND scenario_id = $2 ORDER BY message_order', 'INIT', scenario_id)
-            message_texts = [record['message_text'] for record in messages]
+            scenario_id = await connection.fetchval(
+                "SELECT scenario_id FROM (SELECT DISTINCT scenario_id FROM messages WHERE message_type = $1) AS subquery ORDER BY random() LIMIT 1",
+                "INIT",
+            )
+            messages = await connection.fetch(
+                "SELECT message_text FROM messages WHERE message_type = $1 AND scenario_id = $2 ORDER BY message_order",
+                "INIT",
+                scenario_id,
+            )
+            message_texts = [record["message_text"] for record in messages]
             await send_messages_with_delay(message.chat.id, message_texts, 2)
 
             # выбор случайного сообщения типа RESULT и вставка имени пользователя
             result_message_template = await connection.fetchval(
-                'SELECT message_text FROM messages WHERE message_type = $1 ORDER BY random() LIMIT 1', 'RESULT'
+                "SELECT message_text FROM messages WHERE message_type = $1 ORDER BY random() LIMIT 1",
+                "RESULT",
             )
-            result_message = result_message_template.replace('{username}', f'@{chosen_user["username"]}')
+            result_message = result_message_template.replace(
+                "{username}", f'@{chosen_user["username"]}'
+            )
             await message.reply(result_message)
+
 
 # функция отвечающая за дуэли
 async def duel_command(message: types.Message):
@@ -112,11 +197,16 @@ async def duel_command(message: types.Message):
         try:
             chat_id = message.chat.id
             challenger_id = await connection.fetchval(
-                'SELECT id FROM users WHERE telegram_group_id = $1 AND telegram_id = $2', chat_id, message.from_user.id)
-            logging.info(f'Challenger ID: {challenger_id}')
-            
+                "SELECT id FROM users WHERE telegram_group_id = $1 AND telegram_id = $2",
+                chat_id,
+                message.from_user.id,
+            )
+            logger.info(f"Challenger ID: {challenger_id}")
+
             if not challenger_id:
-                await message.reply('Ты не зарегистрирован. Используй команду /register, чтобы зарегистрироваться.')
+                await message.reply(
+                    "Ты не зарегистрирован. Используй команду /register, чтобы зарегистрироваться."
+                )
                 return
 
             challenged_id = None
@@ -124,80 +214,104 @@ async def duel_command(message: types.Message):
 
             # сценарий 1: ответ на сообщение
             if message.reply_to_message:
-                logging.info('Reply to message found.')
+                logger.info("Reply to message found.")
                 challenged_id = await connection.fetchval(
-                    'SELECT id FROM users WHERE telegram_group_id = $1 AND telegram_id = $2', chat_id, message.reply_to_message.from_user.id)
-                logging.info(f'Challenged ID from reply: {challenged_id}')
+                    "SELECT id FROM users WHERE telegram_group_id = $1 AND telegram_id = $2",
+                    chat_id,
+                    message.reply_to_message.from_user.id,
+                )
+                logger.info(f"Challenged ID from reply: {challenged_id}")
 
                 if not challenged_id:
-                    await message.reply('Пользователь, которому ты бросил вызов, не зарегистрирован.')
-                    logging.info('Challenged user is not registered.')
+                    await message.reply(
+                        "Пользователь, которому ты бросил вызов, не зарегистрирован."
+                    )
+                    logger.info("Challenged user is not registered.")
                     return
 
                 # проверка, чтобы пользователь не мог вызвать сам себя на дуэль
                 if challenger_id == challenged_id:
-                    await message.reply('Ты не можешь вызвать на бой самого себя.')
+                    await message.reply("Ты не можешь вызвать на бой самого себя.")
                     return
-                
+
                 await message.reply(
                     f"@{message.reply_to_message.from_user.username}, *тебе бросили вызов*\! Поборешься с этим ♂jabroni♂\? \(/accept\)",
-                    parse_mode=ParseMode.MARKDOWN_V2
-                    )
+                    parse_mode=ParseMode.MARKDOWN_V2,
+                )
 
             # сценарий 2: упоминание другого пользователя
             elif len(message.text.split()) > 1:
-                mentioned_username = message.text.split()[1].strip('@')
+                mentioned_username = message.text.split()[1].strip("@")
                 challenged_id = await connection.fetchval(
-                    'SELECT id FROM users WHERE telegram_group_id = $1 AND username = $2', chat_id, mentioned_username)
-                logging.info(f'Challenged ID from mention: {challenged_id}')
+                    "SELECT id FROM users WHERE telegram_group_id = $1 AND username = $2",
+                    chat_id,
+                    mentioned_username,
+                )
+                logger.info(f"Challenged ID from mention: {challenged_id}")
 
                 if not challenged_id:
-                    await message.reply(f'Пользователь @{mentioned_username} не зарегистрирован.')
+                    await message.reply(
+                        f"Пользователь @{mentioned_username} не зарегистрирован."
+                    )
                     return
 
                 # проверка, чтобы пользователь не мог вызвать сам себя на дуэль
                 if challenger_id == challenged_id:
-                    await message.reply('Ты не можешь вызвать на бой самого себя.')
+                    await message.reply("Ты не можешь вызвать на бой самого себя.")
                     return
-            
-                await message.reply(f"@{mentioned_username}, *тебе бросили вызов*\! Поборешься с этим ♂jabroni♂\? \(/accept\)",
-                    parse_mode=ParseMode.MARKDOWN_V2
-                    )
-            
+
+                await message.reply(
+                    f"@{mentioned_username}, *тебе бросили вызов*\! Поборешься с этим ♂jabroni♂\? \(/accept\)",
+                    parse_mode=ParseMode.MARKDOWN_V2,
+                )
+
             # сценарий 3: открытая дуэль
             else:
-                logging.info('Open duel created.')
+                logger.info("Open duel created.")
 
-                imgs_folder_path = './pics'
-                all_imgs = [os.path.join(imgs_folder_path, file) for file in os.listdir(imgs_folder_path) if file.endswith('.jpg')]
+                imgs_folder_path = "./pics"
+                all_imgs = [
+                    os.path.join(imgs_folder_path, file)
+                    for file in os.listdir(imgs_folder_path)
+                    if file.endswith(".jpg")
+                ]
                 image_path = random.sample(all_imgs, 1)[0]
 
                 image = FSInputFile(image_path)
                 await bot.send_photo(
-                    chat_id=chat_id, 
-                    photo=image, 
-                    caption='Я новый *♂dungeon master♂*\! Кто не согласен, отзовись или молчи вечно\! /accept\.', 
-                    parse_mode='MarkdownV2'
+                    chat_id=chat_id,
+                    photo=image,
+                    caption="Я новый *♂dungeon master♂*! Кто не согласен, отзовись или молчи вечно! /accept.",
+                    parse_mode="MarkdownV2",
                 )
 
                 result = await connection.execute(
-                    'INSERT INTO duel_state (challenger_id, challenged_id, duel_type, telegram_group_id) VALUES ($1, $2, $3, $4)', 
-                    challenger_id, None, 'open', chat_id
+                    "INSERT INTO duel_state (challenger_id, challenged_id, duel_type, telegram_group_id) VALUES ($1, $2, $3, $4)",
+                    challenger_id,
+                    None,
+                    "open",
+                    chat_id,
                 )
-                logging.info(f'Open Duel Insert Result: {result}')
+                logger.info(f"Open Duel Insert Result: {result}")
                 return
 
             # добавление дуэли в базу (кроме открытой дуэли)
             if challenged_id is not None:
                 result = await connection.execute(
-                    'INSERT INTO duel_state (challenger_id, challenged_id, duel_type, telegram_group_id) VALUES ($1, $2, $3, $4)', 
-                    challenger_id, challenged_id, 'specific', chat_id
+                    "INSERT INTO duel_state (challenger_id, challenged_id, duel_type, telegram_group_id) VALUES ($1, $2, $3, $4)",
+                    challenger_id,
+                    challenged_id,
+                    "specific",
+                    chat_id,
                 )
-                logging.info(f'Duel Insert Result: {result}')
+                logger.info(f"Duel Insert Result: {result}")
 
         except Exception as e:
-            logging.error(f'Error in duel_command: {e}')
-            await message.reply('Произошла ошибка при создании дуэли. Попробуй еще раз.')
+            logger.error(f"Error in duel_command: {e}")
+            await message.reply(
+                "Произошла ошибка при создании дуэли. Попробуй еще раз."
+            )
+
 
 async def accept_duel_command(message: types.Message):
     await create_db_pool()
@@ -205,78 +319,111 @@ async def accept_duel_command(message: types.Message):
         try:
             chat_id = message.chat.id
             user_id = await connection.fetchval(
-                'SELECT id FROM users WHERE telegram_group_id = $1 AND telegram_id = $2', 
-                chat_id, message.from_user.id
+                "SELECT id FROM users WHERE telegram_group_id = $1 AND telegram_id = $2",
+                chat_id,
+                message.from_user.id,
             )
 
             if not user_id:
-                await message.reply('Ты не зарегистрирован. Используй команду /register, чтобы зарегистрироваться.')
+                await message.reply(
+                    "Ты не зарегистрирован. Используй команду /register, чтобы зарегистрироваться."
+                )
                 return
-            
+
             current_time = datetime.utcnow()
 
             # сценарий 1 & 2: принятие вызова на конкретную дуэль (когда пользователь был вызван другим пользователем)
-            logging.info('Searching for specific duel where user was challenged.')
+            logger.info("Searching for specific duel where user was challenged.")
             duel_info = await connection.fetchrow(
-                'SELECT * FROM duel_state WHERE telegram_group_id = $1 AND challenged_id = $2 AND duel_type = $3 AND created_at > $4', 
-                chat_id, user_id, 'specific', current_time - timedelta(minutes=5)
+                "SELECT * FROM duel_state WHERE telegram_group_id = $1 AND challenged_id = $2 AND duel_type = $3 AND created_at > $4",
+                chat_id,
+                user_id,
+                "specific",
+                current_time - timedelta(minutes=5),
             )
 
             # если пользователь вызван на конкретную дуэль
             if duel_info:
-                logging.info('Specific duel found, accepting...')
+                logger.info("Specific duel found, accepting...")
 
                 # проверка: нельзя принять дуэль, созданную самим собой
-                if duel_info['challenger_id'] == user_id:
-                    await message.reply('Ты не можешь принять бой с самим собой.')
+                if duel_info["challenger_id"] == user_id:
+                    await message.reply("Ты не можешь принять бой с самим собой.")
                     return
 
                 # здесь мы не обновляем challenged_id, так как оно уже установлено в вызове дуэли
-        
+
             # сценарий 3: принятие открытой дуэли
             else:
-                logging.info('No specific duel found, searching for open duel.')
+                logger.info("No specific duel found, searching for open duel.")
                 duel_info = await connection.fetchrow(
-                    'SELECT * FROM duel_state WHERE telegram_group_id = $1 AND challenged_id IS NULL AND created_at > $2 AND duel_type = $3',
-                    chat_id, current_time - timedelta(minutes=5), 'open'
+                    "SELECT * FROM duel_state WHERE telegram_group_id = $1 AND challenged_id IS NULL AND created_at > $2 AND duel_type = $3",
+                    chat_id,
+                    current_time - timedelta(minutes=5),
+                    "open",
                 )
 
                 if not duel_info:
-                    await message.reply('Нет доступных дуэлей для принятия.')
+                    await message.reply("Нет доступных дуэлей для принятия.")
                     return
-                
+
                 # проверка: нельзя принять открытую дуэль от самого себя
-                if duel_info['challenger_id'] == user_id:
-                    await message.reply('Ты не можешь принять бой с самим собой.')
+                if duel_info["challenger_id"] == user_id:
+                    await message.reply("Ты не можешь принять бой с самим собой.")
                     return
 
                 # обновляем запись, добавляем challenged_id
                 await connection.execute(
-                    'UPDATE duel_state SET challenged_id = $1 WHERE telegram_group_id = $2 AND id = $3',
-                    user_id, chat_id, duel_info['id']
+                    "UPDATE duel_state SET challenged_id = $1 WHERE telegram_group_id = $2 AND id = $3",
+                    user_id,
+                    chat_id,
+                    duel_info["id"],
                 )
 
             # начинаем выбор оружия с вызвавшего на дуэль
-            await choose_weapon(message, duel_info, duel_info['challenger_id'])
+            await choose_weapon(message, duel_info, duel_info["challenger_id"])
 
         except Exception as e:
-            logging.error(f'Error in accept_duel_command: {e}')
-            await message.reply('Произошла ошибка при принятии дуэли. Попробуйте еще раз.')
+            logger.error(f"Error in accept_duel_command: {e}")
+            await message.reply(
+                "Произошла ошибка при принятии дуэли. Попробуйте еще раз."
+            )
+
 
 # функция для отправки кнопок с выбором оружия
 async def choose_weapon(message: types.Message, duel_info, user_to_choose):
-    duel_id = duel_info['id']
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[[
-        InlineKeyboardButton(text="♂ Dick", callback_data=WeaponCallbackData(weapon="Dick", user_id=user_to_choose, duel_id=duel_id).pack()),
-        InlineKeyboardButton(text="♂ Ass", callback_data=WeaponCallbackData(weapon="Ass", user_id=user_to_choose, duel_id=duel_id).pack()),
-        InlineKeyboardButton(text="♂ Finger", callback_data=WeaponCallbackData(weapon="Finger", user_id=user_to_choose, duel_id=duel_id).pack())
-    ]])
+    duel_id = duel_info["id"]
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="♂ Dick",
+                    callback_data=WeaponCallbackData(
+                        weapon="Dick", user_id=user_to_choose, duel_id=duel_id
+                    ).pack(),
+                ),
+                InlineKeyboardButton(
+                    text="♂ Ass",
+                    callback_data=WeaponCallbackData(
+                        weapon="Ass", user_id=user_to_choose, duel_id=duel_id
+                    ).pack(),
+                ),
+                InlineKeyboardButton(
+                    text="♂ Finger",
+                    callback_data=WeaponCallbackData(
+                        weapon="Finger", user_id=user_to_choose, duel_id=duel_id
+                    ).pack(),
+                ),
+            ]
+        ]
+    )
 
     # забираем username для пинга
     async with pool.acquire() as connection:
         username = await connection.fetchval(
-            'SELECT username FROM users WHERE id = $1 AND telegram_group_id = $2', 
-            user_to_choose, message.chat.id
+            "SELECT username FROM users WHERE id = $1 AND telegram_group_id = $2",
+            user_to_choose,
+            message.chat.id,
         )
 
     # редактируем или отправляем сообщение для выбора
@@ -285,8 +432,11 @@ async def choose_weapon(message: types.Message, duel_info, user_to_choose):
     else:
         await message.answer(f"@{username}, выбери оружие:", reply_markup=keyboard)
 
+
 # обработчик выбора оружия
-async def weapon_chosen(callback_query: CallbackQuery, callback_data: WeaponCallbackData):
+async def weapon_chosen(
+    callback_query: CallbackQuery, callback_data: WeaponCallbackData
+):
     telegram_user_id = callback_query.from_user.id
     weapon = callback_data.weapon
     duel_id = callback_data.duel_id
@@ -296,8 +446,9 @@ async def weapon_chosen(callback_query: CallbackQuery, callback_data: WeaponCall
     # получаем информацию о дуэли по конкретному duel_id
     async with pool.acquire() as connection:
         duel_info = await connection.fetchrow(
-            'SELECT * FROM duel_state WHERE id = $1 AND telegram_group_id = $2', 
-            duel_id, chat_id
+            "SELECT * FROM duel_state WHERE id = $1 AND telegram_group_id = $2",
+            duel_id,
+            chat_id,
         )
 
         if not duel_info:
@@ -306,52 +457,70 @@ async def weapon_chosen(callback_query: CallbackQuery, callback_data: WeaponCall
 
         # получаем внутренний id пользователя по его telegram_id
         user_id = await connection.fetchval(
-            'SELECT id FROM users WHERE telegram_id = $1 AND telegram_group_id = $2', 
-            telegram_user_id, chat_id
+            "SELECT id FROM users WHERE telegram_id = $1 AND telegram_group_id = $2",
+            telegram_user_id,
+            chat_id,
         )
 
         if not user_id:
-            await callback_query.answer("Ты не зарегистрирован. Используй команду /register, чтобы зарегистрироваться.")
+            await callback_query.answer(
+                "Ты не зарегистрирован. Используй команду /register, чтобы зарегистрироваться."
+            )
             return
 
         # проверяем, кто сейчас должен выбирать оружие
-        if duel_info['challenger_weapon'] is None and user_id == duel_info['challenger_id']:
+        if (
+            duel_info["challenger_weapon"] is None
+            and user_id == duel_info["challenger_id"]
+        ):
             # если вызвавший на дуэль выбирает оружие
             await connection.execute(
-                'UPDATE duel_state SET challenger_weapon = $1 WHERE id = $2',
-                weapon, duel_info['id']
+                "UPDATE duel_state SET challenger_weapon = $1 WHERE id = $2",
+                weapon,
+                duel_info["id"],
             )
             await callback_query.answer(f"Ты выбрал {weapon}")
-            await choose_weapon(message, duel_info, duel_info['challenged_id'])
+            await choose_weapon(message, duel_info, duel_info["challenged_id"])
 
-        elif duel_info['challenger_weapon'] is not None and user_id == duel_info['challenged_id']:
+        elif (
+            duel_info["challenger_weapon"] is not None
+            and user_id == duel_info["challenged_id"]
+        ):
             # если вызванный на дуэль выбирает оружие
             await connection.execute(
-                'UPDATE duel_state SET challenged_weapon = $1 WHERE id = $2',
-                weapon, duel_info['id']
+                "UPDATE duel_state SET challenged_weapon = $1 WHERE id = $2",
+                weapon,
+                duel_info["id"],
             )
             await callback_query.answer(f"Ты выбрал {weapon}")
 
             # создаем новое сообщение о начале дуэли
-            new_message = await bot.send_message(chat_id, 'Борьба началась!')
+            new_message = await bot.send_message(chat_id, "Борьба началась!")
 
             # удаляем сообщение с кнопками выбора оружия
             await bot.delete_message(chat_id=chat_id, message_id=message.message_id)
 
             # начинаем дуэль после выбора оружия
             await start_duel(new_message, duel_info, user_id, chat_id)
-        
+
         else:
             # если это не их очередь выбирать
-            await callback_query.answer("Сейчас не твоя очередь выбирать оружие.", show_alert=True)
+            await callback_query.answer(
+                "Сейчас не твоя очередь выбирать оружие.", show_alert=True
+            )
+
 
 async def start_duel(message: types.Message, duel_info, user_id, chat_id):
     await create_db_pool()
-    async with pool.acquire() as connection:    
+    async with pool.acquire() as connection:
         try:
             # отправка GIF-изображений
-            gif_folder_path = './gifs/duel_progress'
-            all_gifs = [os.path.join(gif_folder_path, file) for file in os.listdir(gif_folder_path) if file.endswith('.gif')]
+            gif_folder_path = "./gifs/duel_progress"
+            all_gifs = [
+                os.path.join(gif_folder_path, file)
+                for file in os.listdir(gif_folder_path)
+                if file.endswith(".gif")
+            ]
             gif_files = random.sample(all_gifs, 3)
 
             first_gif = FSInputFile(gif_files[0])
@@ -361,42 +530,91 @@ async def start_duel(message: types.Message, duel_info, user_id, chat_id):
             for gif in gif_files[1:]:
                 await asyncio.sleep(2)
                 new_gif = FSInputFile(gif)
-                media = InputMediaAnimation(media=new_gif)  # передача объекта файла как параметра media
-                await bot.edit_message_media(media=media, chat_id=message.chat.id, message_id=sent_message.message_id)
+                media = InputMediaAnimation(
+                    media=new_gif
+                )  # передача объекта файла как параметра media
+                await bot.edit_message_media(
+                    media=media,
+                    chat_id=message.chat.id,
+                    message_id=sent_message.message_id,
+                )
 
             # удаление сообщения с GIF-картинкой
             await asyncio.sleep(3)  # задержка перед удалением
-            await bot.delete_message(chat_id=message.chat.id, message_id=sent_message.message_id)
+            await bot.delete_message(
+                chat_id=message.chat.id, message_id=sent_message.message_id
+            )
 
             # рандомный выбор победителя и обновление баланса
-            winner_id = random.choice([duel_info['challenger_id'], user_id])
-            loser_id = duel_info['challenger_id'] if winner_id != duel_info['challenger_id'] else user_id
-            points = int(random.expovariate(1/50))
+            winner_id = random.choice([duel_info["challenger_id"], user_id])
+            loser_id = (
+                duel_info["challenger_id"]
+                if winner_id != duel_info["challenger_id"]
+                else user_id
+            )
+            points = int(random.expovariate(1 / 50))
 
-            await connection.execute('UPDATE user_balance SET points = points + $1 WHERE telegram_group_id = $2 AND user_id = $3', points, chat_id, winner_id)
-            await connection.execute('UPDATE user_balance SET points = points - $1 WHERE telegram_group_id = $2 AND user_id = $3', points, chat_id, loser_id)
-            await connection.execute('INSERT INTO fight_history (winner_id, loser_id, points_won, points_lost, telegram_group_id) VALUES ($1, $2, $3, $3, $4)', winner_id, loser_id, points, chat_id)
+            await connection.execute(
+                "UPDATE user_balance SET points = points + $1 WHERE telegram_group_id = $2 AND user_id = $3",
+                points,
+                chat_id,
+                winner_id,
+            )
+            await connection.execute(
+                "UPDATE user_balance SET points = points - $1 WHERE telegram_group_id = $2 AND user_id = $3",
+                points,
+                chat_id,
+                loser_id,
+            )
+            await connection.execute(
+                "INSERT INTO fight_history (winner_id, loser_id, points_won, points_lost, telegram_group_id) VALUES ($1, $2, $3, $3, $4)",
+                winner_id,
+                loser_id,
+                points,
+                chat_id,
+            )
 
             # получаем обновленные балансы пользователей
             winner_balance_after = await connection.fetchval(
-                'SELECT points FROM user_balance WHERE telegram_group_id = $1 AND user_id = $2', chat_id, winner_id
+                "SELECT points FROM user_balance WHERE telegram_group_id = $1 AND user_id = $2",
+                chat_id,
+                winner_id,
             )
             loser_balance_after = await connection.fetchval(
-                'SELECT points FROM user_balance WHERE telegram_group_id = $1 AND user_id = $2', chat_id, loser_id
+                "SELECT points FROM user_balance WHERE telegram_group_id = $1 AND user_id = $2",
+                chat_id,
+                loser_id,
             )
 
             # получаем оружие напрямую из базы данных (duel_state)
             weapons_state = await connection.fetchrow(
-                'SELECT challenger_weapon, challenged_weapon FROM duel_state WHERE id = $1 AND telegram_group_id = $2', 
-                duel_info['id'], chat_id
+                "SELECT challenger_weapon, challenged_weapon FROM duel_state WHERE id = $1 AND telegram_group_id = $2",
+                duel_info["id"],
+                chat_id,
             )
 
             # получаем имена пользователей для вывода и выбранное оружие
-            winner_name = await connection.fetchval('SELECT username FROM users WHERE telegram_group_id = $1 AND id = $2', chat_id, winner_id)
-            loser_name = await connection.fetchval('SELECT username FROM users WHERE telegram_group_id = $1 AND id = $2', chat_id, loser_id)
+            winner_name = await connection.fetchval(
+                "SELECT username FROM users WHERE telegram_group_id = $1 AND id = $2",
+                chat_id,
+                winner_id,
+            )
+            loser_name = await connection.fetchval(
+                "SELECT username FROM users WHERE telegram_group_id = $1 AND id = $2",
+                chat_id,
+                loser_id,
+            )
 
-            winner_weapon = weapons_state['challenger_weapon'] if winner_id == duel_info['challenger_id'] else weapons_state['challenged_weapon']
-            loser_weapon = weapons_state['challenged_weapon'] if loser_id == duel_info['challenged_id'] else weapons_state['challenger_weapon']
+            winner_weapon = (
+                weapons_state["challenger_weapon"]
+                if winner_id == duel_info["challenger_id"]
+                else weapons_state["challenged_weapon"]
+            )
+            loser_weapon = (
+                weapons_state["challenged_weapon"]
+                if loser_id == duel_info["challenged_id"]
+                else weapons_state["challenger_weapon"]
+            )
 
             # выбираем случайное сообщение из таблицы messages
             fight_result_message_template = await connection.fetchval(
@@ -404,34 +622,47 @@ async def start_duel(message: types.Message, duel_info, user_id, chat_id):
             )
 
             # заменяем плейсхолдеры на реальные данные
-            fight_result_message = fight_result_message_template.format_map(SafeDict(
-                winner_name=winner_name,
-                loser_name=loser_name,
-                winner_weapon=winner_weapon,
-                loser_weapon=loser_weapon,
-                points=points
-            ))
+            fight_result_message = fight_result_message_template.format_map(
+                SafeDict(
+                    winner_name=winner_name,
+                    loser_name=loser_name,
+                    winner_weapon=winner_weapon,
+                    loser_weapon=loser_weapon,
+                    points=points,
+                )
+            )
 
             # формируем сообщение о результате дуэли
             result_message = (
-                f'@{winner_name} - {winner_balance_after} (+{points}) мл.\n'
-                f'@{loser_name} - {loser_balance_after} (-{points}) мл.\n\n'
-                f'{fight_result_message}'
+                f"@{winner_name} - {winner_balance_after} (+{points}) мл.\n"
+                f"@{loser_name} - {loser_balance_after} (-{points}) мл.\n\n"
+                f"{fight_result_message}"
             )
 
             # выбираем случайную гифку для завершения дуэли
-            finished_gif_folder = './gifs/duel_finished'
-            finished_gifs = [os.path.join(finished_gif_folder, file) for file in os.listdir(finished_gif_folder) if file.endswith('.gif')]
+            finished_gif_folder = "./gifs/duel_finished"
+            finished_gifs = [
+                os.path.join(finished_gif_folder, file)
+                for file in os.listdir(finished_gif_folder)
+                if file.endswith(".gif")
+            ]
             finished_gif = random.choice(finished_gifs)
 
             # отправляем случайную гифку с результатом дуэли
-            await bot.send_animation(chat_id, animation=FSInputFile(finished_gif), caption=result_message)
+            await bot.send_animation(
+                chat_id, animation=FSInputFile(finished_gif), caption=result_message
+            )
 
-            await connection.execute('DELETE FROM duel_state WHERE telegram_group_id = $1 AND id = $2', chat_id, duel_info['id'])
+            await connection.execute(
+                "DELETE FROM duel_state WHERE telegram_group_id = $1 AND id = $2",
+                chat_id,
+                duel_info["id"],
+            )
 
         except Exception as e:
-            logging.error(f'Error in start_duel: {e}')
-            await message.reply('Произошла ошибка в ходе дуэли. Попробуйте еще раз.')
+            logger.error(f"Error in start_duel: {e}")
+            await message.reply("Произошла ошибка в ходе дуэли. Попробуйте еще раз.")
+
 
 # вывод статистики
 async def rating(message: types.Message):
@@ -441,7 +672,7 @@ async def rating(message: types.Message):
 
     async with pool.acquire() as connection:
         stats = await connection.fetch(
-            '''
+            """
             SELECT 
                 users.username
                 , COALESCE(statistics.chosen_count, 0) AS chosen_count
@@ -453,25 +684,32 @@ async def rating(message: types.Message):
             WHERE 1=1
                 AND users.telegram_group_id = $2
             ORDER BY chosen_count DESC
-            ''', current_year, chat_id 
+            """,
+            current_year,
+            chat_id,
         )
 
         if not stats:
-            await message.reply('Статистика пока пуста.')
+            await message.reply("Статистика пока пуста.")
         else:
-            stats_message = f"Рейтинг пидоров (данные актуальны на {current_year} год):\n"
+            stats_message = (
+                f"Рейтинг пидоров (данные актуальны на {current_year} год):\n"
+            )
             for idx, stat in enumerate(stats, start=1):
-                stats_message += f"{idx}. {stat['username']}: {stat['chosen_count']} раз\n"
+                stats_message += (
+                    f"{idx}. {stat['username']}: {stat['chosen_count']} раз\n"
+                )
             await message.reply(stats_message)
+
 
 async def show_fight_stats(message: types.Message):
     await create_db_pool()
 
     chat_id = message.chat.id
-    
+
     async with pool.acquire() as connection:
         stats = await connection.fetch(
-            '''
+            """
             SELECT 
                 users.username
                 , COUNT(CASE WHEN fight_history.winner_id = users.id THEN 1 END) AS wins
@@ -488,28 +726,34 @@ async def show_fight_stats(message: types.Message):
                 AND users.telegram_group_id = $1
             GROUP BY users.username, user_balance.points
             ORDER BY current_balance DESC
-            ''', chat_id
+            """,
+            chat_id,
         )
 
         if not stats:
-            await message.reply('Статистика поединков пока пуста.')
+            await message.reply("Статистика поединков пока пуста.")
         else:
             stats_message = "Статистика по боям:\n"
             for idx, stat in enumerate(stats, start=1):
-                stats_message += (f"{idx}. {stat['username']}: Победы: {stat['wins']}, "
-                                  f"Поражения: {stat['losses']}, "
-                                  f"Количество ♂️semen♂️: {stat['current_balance']}\n")
+                stats_message += (
+                    f"{idx}. {stat['username']}: Победы: {stat['wins']}, "
+                    f"Поражения: {stat['losses']}, "
+                    f"Количество ♂️semen♂️: {stat['current_balance']}\n"
+                )
             await message.reply(stats_message)
 
-async def main():
-    await bot.set_my_commands([
-        BotCommand(command="pidor", description="Выбрать пидора дня"),
-        BotCommand(command="register", description="Зарегистрироваться"),
-        BotCommand(command="rating", description="Рейтинг пидорасов"),
-        BotCommand(command="duel", description="Вызвать побороться"),
-        BotCommand(command="accept", description="Принять бой"),
-        BotCommand(command="fight_stats", description="Статистика боев")
-    ])
+
+async def set_commands():
+    await bot.set_my_commands(
+        [
+            BotCommand(command="pidor", description="Выбрать пидора дня"),
+            BotCommand(command="register", description="Зарегистрироваться"),
+            BotCommand(command="rating", description="Рейтинг пидорасов"),
+            BotCommand(command="duel", description="Вызвать побороться"),
+            BotCommand(command="accept", description="Принять бой"),
+            BotCommand(command="fight_stats", description="Статистика боев"),
+        ]
+    )
 
     dp.message.register(register_user, Command(commands=["register"]))
     dp.message.register(choose_pidor_of_the_day, Command(commands=["pidor"]))
@@ -519,7 +763,107 @@ async def main():
     dp.message.register(show_fight_stats, Command(commands=["fight_stats"]))
     dp.callback_query.register(weapon_chosen, WeaponCallbackData.filter())
 
-    await dp.start_polling(bot)
 
-if __name__ == '__main__':
-    asyncio.run(main())
+class InitException(Exception):
+    pass
+
+
+async def increase_bot_instance_count() -> int:
+    await create_db_pool()
+    async with pool.acquire() as connection:
+        async with connection.transaction():
+            bot_instance = await connection.fetchrow(
+                """
+                SELECT * FROM bot_instance FOR UPDATE;
+                """,
+            )
+            new_bot_instance_count = bot_instance["bot_instance_count"] + 1
+
+            if (
+                new_bot_instance_count > 1
+                and bot_instance["webhook_url"] != WEBHOOK_URL
+            ):
+                raise InitException("Webhook url should not change!")
+
+            await connection.execute(
+                """
+                UPDATE bot_instance
+                SET bot_instance_count = $1,
+                    updated_at = NOW(),
+                    webhook_url = $2;
+                """,
+                new_bot_instance_count,
+                WEBHOOK_URL,
+            )
+
+            return new_bot_instance_count
+
+
+async def decrease_bot_instance_count() -> int:
+    await create_db_pool()
+    async with pool.acquire() as connection:
+        async with connection.transaction():
+            bot_instance = await connection.fetchrow(
+                """
+                SELECT * FROM bot_instance FOR UPDATE;
+                """,
+            )
+            new_bot_instance_count = bot_instance["bot_instance_count"] - 1
+            await connection.execute(
+                """
+                UPDATE bot_instance
+                SET bot_instance_count = $1, updated_at = NOW()
+                """,
+                new_bot_instance_count,
+            )
+
+            return new_bot_instance_count
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    bot_instance_count = await increase_bot_instance_count()
+    logger.info(f"Bot instance count: {bot_instance_count}")
+
+    if bot_instance_count == 1:
+        await bot.set_webhook(
+            url=WEBHOOK_URL,
+            secret_token=WEBHOOK_SECRET,
+            allowed_updates=dp.resolve_used_update_types(),
+            drop_pending_updates=True,
+        )
+        await set_commands()
+
+    webhook_info = await bot.get_webhook_info()
+    logger.info(f"Webhook url: {webhook_info.url}")
+    yield
+
+    bot_instance_count = await decrease_bot_instance_count()
+    if bot_instance_count == 0:
+        await bot.delete_webhook()
+
+    logger.info("Lifecycle shutdown successful!")
+
+
+app = FastAPI(lifespan=lifespan, title="API")
+
+
+@app.get("/healthz")
+def get_health() -> str:
+    return "up and running!"
+
+
+@app.post("/webhook")
+async def webhook(request: Request) -> None:
+    await dp.feed_webhook_update(bot, await request.json())
+
+
+if __name__ == "__main__":
+    logger.info("API is starting up")
+    uvicorn.run(
+        app,
+        host=APP_HOST,
+        port=int(APP_PORT),
+        log_config="./log_conf.yaml",
+        timeout_graceful_shutdown=30,
+    )
