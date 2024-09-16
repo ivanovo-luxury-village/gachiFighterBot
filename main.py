@@ -73,7 +73,7 @@ class SafeDict(dict):
 
 def approx_points():
     mean = 120
-    stddev = 25
+    stddev = 50
 
     # специальные комбинации
     weak_combination_chance = 0.05  # 5% на weak комбинацию
@@ -644,7 +644,7 @@ async def start_duel(message: types.Message, duel_info, user_id, chat_id):
                 fight_result_message_template = await connection.fetchval(
                     "SELECT message_text FROM messages WHERE message_type = 'FIGHT_RESULT_WEAK' ORDER BY random() LIMIT 1"
                 )
-            elif points > 30 and points < 250:
+            elif points >= 30 and points < 250:
                 fight_result_message_template = await connection.fetchval(
                     "SELECT message_text FROM messages WHERE message_type = 'FIGHT_RESULT' ORDER BY random() LIMIT 1"
                 )
