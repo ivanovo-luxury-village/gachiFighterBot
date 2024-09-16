@@ -2,6 +2,7 @@ import os
 import logging
 import asyncpg
 import random
+import numpy as np
 import asyncio
 import uvicorn
 
@@ -68,6 +69,35 @@ class SafeDict(dict):
         return (
             f"{{{key}}}"  # если плейсхолдер отсутствует, возвращаем его в исходном виде
         )
+
+
+def approx_points():
+    mean = 120
+    stddev = 25
+
+    # специальные комбинации
+    weak_combination_chance = 0.05  # 5% на weak комбинацию
+    lower_legendary_combination_chance = 0.05  # 5% на lower legendary комбинацию
+    upper_legendary_combination_chance = 0.015  # 1.5% на upper legendary комбинацию
+
+    # генерируем
+    weak_combination = random.randint(1, 30)
+    lower_legendary_combination = random.randint(250, 400)
+    upper_legendary_combination = random.randint(400, 800)
+    
+    # генерация обычных очков по нормальному распределению
+    normal_points = max(1, int(np.random.normal(mean, stddev)))
+
+    roll = random.random()
+
+    if roll < weak_combination_chance:
+        return weak_combination  # weak
+    elif roll < weak_combination_chance + lower_legendary_combination_chance:
+        return lower_legendary_combination  # lower legendary
+    elif roll < weak_combination_chance + lower_legendary_combination_chance + upper_legendary_combination_chance:
+        return upper_legendary_combination  # upper legendary
+    else:
+        return normal_points  # обычные очки
 
 
 # функция для подключения к базе данных
@@ -552,7 +582,7 @@ async def start_duel(message: types.Message, duel_info, user_id, chat_id):
                 if winner_id != duel_info["challenger_id"]
                 else user_id
             )
-            points = int(random.expovariate(1 / 50))
+            points = approx_points()
 
             await connection.execute(
                 "UPDATE user_balance SET points = points + $1 WHERE telegram_group_id = $2 AND user_id = $3",
@@ -609,10 +639,19 @@ async def start_duel(message: types.Message, duel_info, user_id, chat_id):
                 else weapons_state["challenger_weapon"]
             )
 
-            # выбираем случайное сообщение из таблицы messages
-            fight_result_message_template = await connection.fetchval(
-                "SELECT message_text FROM messages WHERE message_type = 'FIGHT_RESULT' ORDER BY random() LIMIT 1"
-            )
+            # сообщение о результате поединка в зависимости от очков
+            if points < 30:
+                fight_result_message_template = await connection.fetchval(
+                    "SELECT message_text FROM messages WHERE message_type = 'FIGHT_RESULT_WEAK' ORDER BY random() LIMIT 1"
+                )
+            elif points > 30 and points < 250:
+                fight_result_message_template = await connection.fetchval(
+                    "SELECT message_text FROM messages WHERE message_type = 'FIGHT_RESULT' ORDER BY random() LIMIT 1"
+                )
+            else:
+                fight_result_message_template = await connection.fetchval(
+                    "SELECT message_text FROM messages WHERE message_type = 'FIGHT_RESULT_LEGENDARY' ORDER BY random() LIMIT 1"
+                )
 
             # заменяем плейсхолдеры на реальные данные
             fight_result_message = fight_result_message_template.format_map(
