@@ -566,13 +566,6 @@ async def start_duel(message: types.Message, duel_info, user_id, chat_id):
                 chat_id,
                 loser_id,
             )
-            await connection.execute(
-                "INSERT INTO fight_history (winner_id, loser_id, points_won, points_lost, telegram_group_id) VALUES ($1, $2, $3, $3, $4)",
-                winner_id,
-                loser_id,
-                points,
-                chat_id,
-            )
 
             # получаем обновленные балансы пользователей
             winner_balance_after = await connection.fetchval(
@@ -654,6 +647,19 @@ async def start_duel(message: types.Message, duel_info, user_id, chat_id):
             )
 
             await connection.execute(
+                """
+                INSERT INTO fight_history (winner_id, loser_id, points_won, points_lost, telegram_group_id, winner_weapon, loser_weapon)
+                VALUES ($1, $2, $3, $3, $4, $5, $6)
+                """,
+                winner_id,
+                loser_id,
+                points,
+                chat_id,
+                winner_weapon,
+                loser_weapon
+            )
+
+            await connection.execute(
                 "DELETE FROM duel_state WHERE telegram_group_id = $1 AND id = $2",
                 chat_id,
                 duel_info["id"],
@@ -731,15 +737,11 @@ async def show_fight_stats(message: types.Message):
         )
 
         if not stats:
-            await message.reply("Статистика поединков пока пуста.")
+            await message.reply('Статистика поединков пока пуста.')
         else:
-            stats_message = "Статистика по боям:\n"
+            stats_message = "Групповой рейтинг ⚣semen⚣:\n"
             for idx, stat in enumerate(stats, start=1):
-                stats_message += (
-                    f"{idx}. {stat['username']}: Победы: {stat['wins']}, "
-                    f"Поражения: {stat['losses']}, "
-                    f"Количество ♂️semen♂️: {stat['current_balance']}\n"
-                )
+                stats_message += (f"{idx}) {stat['username']} - {stat['current_balance']} мл.\n")
             await message.reply(stats_message)
 
 
