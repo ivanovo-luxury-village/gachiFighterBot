@@ -19,7 +19,7 @@ from contextlib import asynccontextmanager
 from aiogram.filters import Command
 from aiogram.enums import ParseMode
 from aiogram.filters.callback_data import CallbackData
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.requests import Request
@@ -275,6 +275,43 @@ async def duel_command(message: types.Message):
                     "Ты не зарегистрирован. Используй команду /register, чтобы зарегистрироваться."
                 )
                 return
+
+            # cooldown 1: если есть 2 дуэли со статусами 'created' или 'in progress'
+            active_duels_count = await connection.fetchval(
+                """
+                SELECT COUNT(*) 
+                FROM duel_state 
+                WHERE telegram_group_id = $1 
+                    AND status IN ('created', 'in progress')
+                """,
+                chat_id,
+            )
+
+            if active_duels_count >= 2:
+                await message.reply(
+                    "Пока ⚣побороться⚣ не получится, подожди пока закончатся текущие бои."
+                )
+                return
+            
+            # cooldown 2: если прошло менее 3 минут с последней дуэли 'finished'
+            last_finished_duel_time = await connection.fetchval(
+                """
+                SELECT MAX(created_at)
+                FROM duel_state 
+                WHERE telegram_group_id = $1 
+                    AND status = 'finished'
+                """,
+                chat_id,
+            )
+
+            if last_finished_duel_time:
+                current_time = datetime.now(timezone.utc)
+                time_since_last_duel = current_time - last_finished_duel_time
+                if time_since_last_duel < timedelta(minutes=3):
+                    await message.reply(
+                        "Нужен перерыв между ⚣борьбой⚣, попробуй через пару минут"
+                    )
+                    return
 
             challenged_id = None
             mentioned_username = None
