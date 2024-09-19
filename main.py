@@ -19,7 +19,7 @@ from contextlib import asynccontextmanager
 from aiogram.filters import Command
 from aiogram.enums import ParseMode
 from aiogram.filters.callback_data import CallbackData
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.requests import Request
@@ -220,6 +220,79 @@ async def choose_pidor_of_the_day(message: types.Message):
             await message.reply(result_message)
 
 
+# функция отвечающая за проверку просроченных дуэлей
+async def check_expired_duels():
+    while True:
+        try:
+            await create_db_pool()
+            current_time = datetime.utcnow()
+
+            async with pool.acquire() as connection:
+                expired_duels = await connection.fetch(
+                    """
+                    SELECT id 
+                    FROM duel_state 
+                    WHERE status = $1 
+                        AND created_at < $2
+                    """,
+                    "created", 
+                    current_time - timedelta(minutes=5)
+                )
+
+                for duel in expired_duels:
+                    await connection.execute(
+                        """
+                        UPDATE duel_state 
+                        SET status = $1 
+                        WHERE id = $2
+                        """,
+                        "expired (not accepted)",
+                        duel['id']
+                    )
+                logger.info(f"updated {len(expired_duels)} duel with status 'expired (not accepted)'")
+                
+        except Exception as e:
+            logger.error(f"Error in check_expired_duels: {e}")
+        
+        await asyncio.sleep(30)  # проверка каждые 30 секунд
+
+# функция отвечающая за проверку дуэлей с долгим статусом "in progress"
+async def check_long_in_progress_duels():
+    while True:
+        try:
+            await create_db_pool()
+            current_time = datetime.utcnow()
+
+            async with pool.acquire() as connection:
+                long_in_progress_duels = await connection.fetch(
+                    """
+                    SELECT id 
+                    FROM duel_state 
+                    WHERE status = $1 
+                        AND created_at < $2
+                    """,
+                    "in progress", 
+                    current_time - timedelta(minutes=10)
+                )
+
+                for duel in long_in_progress_duels:
+                    await connection.execute(
+                        """
+                        UPDATE duel_state 
+                        SET status = $1 
+                        WHERE id = $2
+                        """,
+                        "expired (not finished)",
+                        duel['id']
+                    )
+                logger.info(f"updated {len(long_in_progress_duels)} duel with status 'expired (not finished)'")
+                
+        except Exception as e:
+            logger.error(f"Error in check_long_in_progress_duels: {e}")
+        
+        await asyncio.sleep(30)  # проверка каждые 30 секунд
+
+
 # функция отвечающая за дуэли
 async def duel_command(message: types.Message):
     await create_db_pool()
@@ -238,6 +311,43 @@ async def duel_command(message: types.Message):
                     "Ты не зарегистрирован. Используй команду /register, чтобы зарегистрироваться."
                 )
                 return
+
+            # cooldown 1: если есть 2 дуэли со статусами 'created' или 'in progress'
+            active_duels_count = await connection.fetchval(
+                """
+                SELECT COUNT(*) 
+                FROM duel_state 
+                WHERE telegram_group_id = $1 
+                    AND status IN ('created', 'in progress')
+                """,
+                chat_id,
+            )
+
+            if active_duels_count >= 2:
+                await message.reply(
+                    "Пока ⚣побороться⚣ не получится, подожди пока закончатся текущие бои."
+                )
+                return
+            
+            # cooldown 2: если прошло менее 3 минут с последней дуэли 'finished'
+            last_finished_duel_time = await connection.fetchval(
+                """
+                SELECT MAX(created_at)
+                FROM duel_state 
+                WHERE telegram_group_id = $1 
+                    AND status = 'finished'
+                """,
+                chat_id,
+            )
+
+            if last_finished_duel_time:
+                current_time = datetime.now(timezone.utc)
+                time_since_last_duel = current_time - last_finished_duel_time
+                if time_since_last_duel < timedelta(minutes=3):
+                    await message.reply(
+                        "Нужен перерыв между ⚣борьбой⚣, попробуй через пару минут"
+                    )
+                    return
 
             challenged_id = None
             mentioned_username = None
@@ -316,11 +426,15 @@ async def duel_command(message: types.Message):
                 )
 
                 result = await connection.execute(
-                    "INSERT INTO duel_state (challenger_id, challenged_id, duel_type, telegram_group_id) VALUES ($1, $2, $3, $4)",
+                    """
+                    INSERT INTO duel_state (challenger_id, challenged_id, duel_type, telegram_group_id, status) 
+                    VALUES ($1, $2, $3, $4, $5)
+                    """,
                     challenger_id,
                     None,
                     "open",
                     chat_id,
+                    "created"
                 )
                 logger.info(f"Open Duel Insert Result: {result}")
                 return
@@ -328,11 +442,15 @@ async def duel_command(message: types.Message):
             # добавление дуэли в базу (кроме открытой дуэли)
             if challenged_id is not None:
                 result = await connection.execute(
-                    "INSERT INTO duel_state (challenger_id, challenged_id, duel_type, telegram_group_id) VALUES ($1, $2, $3, $4)",
+                    """
+                    INSERT INTO duel_state (challenger_id, challenged_id, duel_type, telegram_group_id, status) 
+                    VALUES ($1, $2, $3, $4, $5)
+                    """,
                     challenger_id,
                     challenged_id,
                     "specific",
                     chat_id,
+                    "created"
                 )
                 logger.info(f"Duel Insert Result: {result}")
 
@@ -365,16 +483,26 @@ async def accept_duel_command(message: types.Message):
             # сценарий 1 & 2: принятие вызова на конкретную дуэль (когда пользователь был вызван другим пользователем)
             logger.info("Searching for specific duel where user was challenged.")
             duel_info = await connection.fetchrow(
-                "SELECT * FROM duel_state WHERE telegram_group_id = $1 AND challenged_id = $2 AND duel_type = $3 AND created_at > $4",
+                """
+                SELECT * 
+                FROM duel_state 
+                WHERE telegram_group_id = $1 
+                    AND challenged_id = $2 
+                    AND duel_type = $3 
+                    AND created_at > $4
+                    AND status = $5
+                LIMIT 1
+                """,
                 chat_id,
                 user_id,
                 "specific",
                 current_time - timedelta(minutes=5),
+                "created"
             )
 
             # если пользователь вызван на конкретную дуэль
             if duel_info:
-                logger.info("Specific duel found, accepting...")
+                logger.info("Specific duel found, accepting")
 
                 # проверка: нельзя принять дуэль, созданную самим собой
                 if duel_info["challenger_id"] == user_id:
@@ -387,10 +515,20 @@ async def accept_duel_command(message: types.Message):
             else:
                 logger.info("No specific duel found, searching for open duel.")
                 duel_info = await connection.fetchrow(
-                    "SELECT * FROM duel_state WHERE telegram_group_id = $1 AND challenged_id IS NULL AND created_at > $2 AND duel_type = $3",
+                    """
+                    SELECT * 
+                    FROM duel_state 
+                    WHERE telegram_group_id = $1 
+                        AND challenged_id IS NULL 
+                        AND created_at > $2 
+                        AND duel_type = $3
+                        AND status = $4
+                    LIMIT 1
+                    """,
                     chat_id,
                     current_time - timedelta(minutes=5),
                     "open",
+                    "created"
                 )
 
                 if not duel_info:
@@ -409,6 +547,14 @@ async def accept_duel_command(message: types.Message):
                     chat_id,
                     duel_info["id"],
                 )
+
+            # обновляем статус дуэли
+            await connection.execute(
+                "UPDATE duel_state SET status = $1 WHERE telegram_group_id = $2 AND id = $3",
+                'in progress',
+                chat_id,
+                duel_info["id"],
+            )
 
             # начинаем выбор оружия с вызвавшего на дуэль
             await choose_weapon(message, duel_info, duel_info["challenger_id"])
@@ -699,13 +845,20 @@ async def start_duel(message: types.Message, duel_info, user_id, chat_id):
             )
 
             await connection.execute(
-                "DELETE FROM duel_state WHERE telegram_group_id = $1 AND id = $2",
+                "UPDATE duel_state SET status = $1 WHERE telegram_group_id = $2 AND id = $3",
+                'finished',
                 chat_id,
                 duel_info["id"],
             )
 
         except Exception as e:
             logger.error(f"Error in start_duel: {e}")
+            await connection.execute(
+                "UPDATE duel_state SET status = $1 WHERE telegram_group_id = $2 AND id = $3",
+                'error',
+                chat_id,
+                duel_info["id"],
+            )
             await message.reply("Произошла ошибка в ходе дуэли. Попробуйте еще раз.")
 
 
@@ -806,6 +959,11 @@ async def set_commands():
     dp.callback_query.register(weapon_chosen, WeaponCallbackData.filter())
 
 
+async def start_background_tasks():
+    asyncio.create_task(check_expired_duels())
+    asyncio.create_task(check_long_in_progress_duels())
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await bot.set_webhook(
@@ -815,6 +973,9 @@ async def lifespan(app: FastAPI):
         drop_pending_updates=True,
     )
     await set_commands()
+
+    # запуск проверок дуэлей
+    await start_background_tasks()
 
     webhook_info = await bot.get_webhook_info()
     logger.info(f"Webhook url: {webhook_info.url}")
