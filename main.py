@@ -316,11 +316,15 @@ async def duel_command(message: types.Message):
                 )
 
                 result = await connection.execute(
-                    "INSERT INTO duel_state (challenger_id, challenged_id, duel_type, telegram_group_id) VALUES ($1, $2, $3, $4)",
+                    """
+                    INSERT INTO duel_state (challenger_id, challenged_id, duel_type, telegram_group_id, status) 
+                    VALUES ($1, $2, $3, $4, $5)
+                    """,
                     challenger_id,
                     None,
                     "open",
                     chat_id,
+                    "created"
                 )
                 logger.info(f"Open Duel Insert Result: {result}")
                 return
@@ -328,11 +332,15 @@ async def duel_command(message: types.Message):
             # добавление дуэли в базу (кроме открытой дуэли)
             if challenged_id is not None:
                 result = await connection.execute(
-                    "INSERT INTO duel_state (challenger_id, challenged_id, duel_type, telegram_group_id) VALUES ($1, $2, $3, $4)",
+                    """
+                    INSERT INTO duel_state (challenger_id, challenged_id, duel_type, telegram_group_id, status) 
+                    VALUES ($1, $2, $3, $4, $5)
+                    """,
                     challenger_id,
                     challenged_id,
                     "specific",
                     chat_id,
+                    "created"
                 )
                 logger.info(f"Duel Insert Result: {result}")
 
@@ -365,16 +373,26 @@ async def accept_duel_command(message: types.Message):
             # сценарий 1 & 2: принятие вызова на конкретную дуэль (когда пользователь был вызван другим пользователем)
             logger.info("Searching for specific duel where user was challenged.")
             duel_info = await connection.fetchrow(
-                "SELECT * FROM duel_state WHERE telegram_group_id = $1 AND challenged_id = $2 AND duel_type = $3 AND created_at > $4",
+                """
+                SELECT * 
+                FROM duel_state 
+                WHERE telegram_group_id = $1 
+                    AND challenged_id = $2 
+                    AND duel_type = $3 
+                    AND created_at > $4
+                    AND status = $5
+                LIMIT 1
+                """,
                 chat_id,
                 user_id,
                 "specific",
                 current_time - timedelta(minutes=5),
+                "created"
             )
 
             # если пользователь вызван на конкретную дуэль
             if duel_info:
-                logger.info("Specific duel found, accepting...")
+                logger.info("Specific duel found, accepting")
 
                 # проверка: нельзя принять дуэль, созданную самим собой
                 if duel_info["challenger_id"] == user_id:
@@ -387,10 +405,20 @@ async def accept_duel_command(message: types.Message):
             else:
                 logger.info("No specific duel found, searching for open duel.")
                 duel_info = await connection.fetchrow(
-                    "SELECT * FROM duel_state WHERE telegram_group_id = $1 AND challenged_id IS NULL AND created_at > $2 AND duel_type = $3",
+                    """
+                    SELECT * 
+                    FROM duel_state 
+                    WHERE telegram_group_id = $1 
+                        AND challenged_id IS NULL 
+                        AND created_at > $2 
+                        AND duel_type = $3
+                        AND status = $4
+                    LIMIT 1
+                    """,
                     chat_id,
                     current_time - timedelta(minutes=5),
                     "open",
+                    "created"
                 )
 
                 if not duel_info:
@@ -409,6 +437,14 @@ async def accept_duel_command(message: types.Message):
                     chat_id,
                     duel_info["id"],
                 )
+
+            # обновляем статус дуэли
+            await connection.execute(
+                "UPDATE duel_state SET status = $1 WHERE telegram_group_id = $2 AND id = $3",
+                'in progress',
+                chat_id,
+                duel_info["id"],
+            )
 
             # начинаем выбор оружия с вызвавшего на дуэль
             await choose_weapon(message, duel_info, duel_info["challenger_id"])
@@ -699,13 +735,20 @@ async def start_duel(message: types.Message, duel_info, user_id, chat_id):
             )
 
             await connection.execute(
-                "DELETE FROM duel_state WHERE telegram_group_id = $1 AND id = $2",
+                "UPDATE duel_state SET status = $1 WHERE telegram_group_id = $2 AND id = $3",
+                'finished',
                 chat_id,
                 duel_info["id"],
             )
 
         except Exception as e:
             logger.error(f"Error in start_duel: {e}")
+            await connection.execute(
+                "UPDATE duel_state SET status = $1 WHERE telegram_group_id = $2 AND id = $3",
+                'error',
+                chat_id,
+                duel_info["id"],
+            )
             await message.reply("Произошла ошибка в ходе дуэли. Попробуйте еще раз.")
 
 
