@@ -220,6 +220,43 @@ async def choose_pidor_of_the_day(message: types.Message):
             await message.reply(result_message)
 
 
+# функция отвечающая за проверки
+async def check_expired_duels():
+    while True:
+        try:
+            await create_db_pool()
+            current_time = datetime.utcnow()
+
+            async with pool.acquire() as connection:
+                expired_duels = await connection.fetch(
+                    """
+                    SELECT id 
+                    FROM duel_state 
+                    WHERE status = $1 
+                        AND created_at < $2
+                    """,
+                    "created", 
+                    current_time - timedelta(minutes=5)
+                )
+
+                for duel in expired_duels:
+                    await connection.execute(
+                        """
+                        UPDATE duel_state 
+                        SET status = $1 
+                        WHERE id = $2
+                        """,
+                        "not accepted",
+                        duel['id']
+                    )
+                logger.info(f"updated {len(expired_duels)} duel with status 'not accepted'")
+                
+        except Exception as e:
+            logger.error(f"Error in check_expired_duels: {e}")
+        
+        await asyncio.sleep(30)  # проверка каждые 30 секунд
+
+
 # функция отвечающая за дуэли
 async def duel_command(message: types.Message):
     await create_db_pool()
@@ -849,6 +886,10 @@ async def set_commands():
     dp.callback_query.register(weapon_chosen, WeaponCallbackData.filter())
 
 
+async def start_background_tasks():
+    asyncio.create_task(check_expired_duels())
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await bot.set_webhook(
@@ -858,6 +899,9 @@ async def lifespan(app: FastAPI):
         drop_pending_updates=True,
     )
     await set_commands()
+
+    # запуск проверки просроченных дуэлей
+    await start_background_tasks()
 
     webhook_info = await bot.get_webhook_info()
     logger.info(f"Webhook url: {webhook_info.url}")
