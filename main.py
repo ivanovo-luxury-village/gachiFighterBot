@@ -220,7 +220,7 @@ async def choose_pidor_of_the_day(message: types.Message):
             await message.reply(result_message)
 
 
-# функция отвечающая за проверки
+# функция отвечающая за проверку просроченных дуэлей
 async def check_expired_duels():
     while True:
         try:
@@ -246,13 +246,49 @@ async def check_expired_duels():
                         SET status = $1 
                         WHERE id = $2
                         """,
-                        "not accepted",
+                        "expired (not accepted)",
                         duel['id']
                     )
-                logger.info(f"updated {len(expired_duels)} duel with status 'not accepted'")
+                logger.info(f"updated {len(expired_duels)} duel with status 'expired (not accepted)'")
                 
         except Exception as e:
             logger.error(f"Error in check_expired_duels: {e}")
+        
+        await asyncio.sleep(30)  # проверка каждые 30 секунд
+
+# функция отвечающая за проверку дуэлей с долгим статусом "in progress"
+async def check_long_in_progress_duels():
+    while True:
+        try:
+            await create_db_pool()
+            current_time = datetime.utcnow()
+
+            async with pool.acquire() as connection:
+                long_in_progress_duels = await connection.fetch(
+                    """
+                    SELECT id 
+                    FROM duel_state 
+                    WHERE status = $1 
+                        AND created_at < $2
+                    """,
+                    "in progress", 
+                    current_time - timedelta(minutes=10)
+                )
+
+                for duel in long_in_progress_duels:
+                    await connection.execute(
+                        """
+                        UPDATE duel_state 
+                        SET status = $1 
+                        WHERE id = $2
+                        """,
+                        "expired (not finished)",
+                        duel['id']
+                    )
+                logger.info(f"updated {len(long_in_progress_duels)} duel with status 'expired (not finished)'")
+                
+        except Exception as e:
+            logger.error(f"Error in check_long_in_progress_duels: {e}")
         
         await asyncio.sleep(30)  # проверка каждые 30 секунд
 
@@ -925,6 +961,7 @@ async def set_commands():
 
 async def start_background_tasks():
     asyncio.create_task(check_expired_duels())
+    asyncio.create_task(check_long_in_progress_duels())
 
 
 @asynccontextmanager
@@ -937,7 +974,7 @@ async def lifespan(app: FastAPI):
     )
     await set_commands()
 
-    # запуск проверки просроченных дуэлей
+    # запуск проверок дуэлей
     await start_background_tasks()
 
     webhook_info = await bot.get_webhook_info()
