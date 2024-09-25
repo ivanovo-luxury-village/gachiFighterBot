@@ -3,16 +3,15 @@ import random
 import asyncio
 from aiogram import types
 from aiogram.types import FSInputFile, InputMediaAnimation
-from database.db_pool import create_db_pool, pool
+from database.db_pool import get_db_pool
 from utils.service_funcs import SafeDict
 from utils.distribute_points import approx_points
 from utils.logger import logger
 from bot.setup import bot
 
 
-
 async def start_duel(message: types.Message, duel_info, user_id, chat_id):
-    await create_db_pool()
+    pool = get_db_pool()
     async with pool.acquire() as connection:
         try:
             # отправка GIF-изображений

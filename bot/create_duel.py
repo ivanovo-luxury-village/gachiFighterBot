@@ -4,14 +4,14 @@ from datetime import datetime, timedelta, timezone
 from aiogram import types
 from aiogram.types import FSInputFile
 from aiogram.enums import ParseMode
-from database.db_pool import create_db_pool, pool
+from database.db_pool import get_db_pool
 from utils.logger import logger
 from bot.setup import bot
 
 
 async def duel_command(message: types.Message):
     '''функция отвечающая за дуэли'''
-    await create_db_pool()
+    pool = get_db_pool()
     async with pool.acquire() as connection:
         try:
             chat_id = message.chat.id

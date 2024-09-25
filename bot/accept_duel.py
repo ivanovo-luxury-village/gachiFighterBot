@@ -1,13 +1,13 @@
 from datetime import datetime, timedelta
 from aiogram import types
-from database.db_pool import create_db_pool, pool
+from database.db_pool import get_db_pool
 from utils.logger import logger
 from bot.weapons import choose_weapon
 
 
 async def accept_duel_command(message: types.Message):
     '''функция для принятия дуэли'''
-    await create_db_pool()
+    pool = get_db_pool()
     async with pool.acquire() as connection:
         try:
             chat_id = message.chat.id

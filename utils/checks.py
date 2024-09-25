@@ -1,13 +1,14 @@
 import asyncio 
-from database.db_pool import create_db_pool, pool
 from datetime import datetime, timedelta
 from utils.logger import logger
+from database.db_pool import get_db_pool
+
 
 async def check_expired_duels():
     '''функция отвечающая за проверку просроченных дуэлей'''
+    pool = get_db_pool()
     while True:
         try:
-            await create_db_pool()
             current_time = datetime.utcnow()
 
             async with pool.acquire() as connection:
@@ -42,9 +43,14 @@ async def check_expired_duels():
 
 async def check_long_in_progress_duels():
     '''функция отвечающая за проверку дуэлей с долгим статусом "in progress"'''
+    pool = get_db_pool()
     while True:
         try:
-            await create_db_pool()
+            if pool is None:
+                logger.error("Database pool is still not initialized, skipping this iteration")
+                await asyncio.sleep(5)  # Подождем перед повторной проверкой
+                continue
+            
             current_time = datetime.utcnow()
 
             async with pool.acquire() as connection:

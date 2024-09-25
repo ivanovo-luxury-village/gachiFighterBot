@@ -1,10 +1,10 @@
 from aiogram import types
-from database.db_pool import create_db_pool, pool
+from database.db_pool import get_db_pool
 from datetime import datetime
 
 async def rating(message: types.Message):
     '''групповой рейтинг пидора дня за актуальный год'''
-    await create_db_pool()
+    pool = get_db_pool()
     current_year = datetime.utcnow().year
     chat_id = message.chat.id
 
@@ -42,7 +42,7 @@ async def rating(message: types.Message):
 
 async def show_fight_stats(message: types.Message):
     '''групповой рейтинг очков'''
-    await create_db_pool()
+    pool = get_db_pool()
 
     chat_id = message.chat.id
 

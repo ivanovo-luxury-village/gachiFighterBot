@@ -1,5 +1,5 @@
 from aiogram import types
-from database.db_pool import create_db_pool, pool
+from database.db_pool import get_db_pool
 
 async def register_user(message: types.Message):
     '''регистрация нового пользователя'''
@@ -7,7 +7,7 @@ async def register_user(message: types.Message):
     username = message.from_user.username
     chat_id = message.chat.id
 
-    await create_db_pool()
+    pool = get_db_pool()
     async with pool.acquire() as connection:
         existing_user = await connection.fetchval(
             "SELECT id FROM users WHERE telegram_group_id = $1 AND telegram_id = $2",

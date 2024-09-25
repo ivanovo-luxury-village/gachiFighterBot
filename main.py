@@ -1,6 +1,8 @@
 import asyncio
 import uvicorn
 
+from database.db_pool import create_db_pool, get_db_pool
+
 from aiogram.types import BotCommand
 from aiogram.filters import Command
 from fastapi import FastAPI
@@ -44,12 +46,25 @@ async def set_commands():
 
 
 async def start_background_tasks():
+    logger.info("Starting background tasks after initialization delay...")
+    await asyncio.sleep(1)  # Задержка в 1 секунду перед запуском задач
+
+    pool = get_db_pool()
+    
+    if pool is None:
+        logger.error("Database pool is not initialized before starting tasks.")
+    else:
+        logger.info("Database pool is correctly initialized before starting tasks.")
+    
     asyncio.create_task(check_expired_duels())
     asyncio.create_task(check_long_in_progress_duels())
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    logger.info("Starting lifespan and initializing database pool...")
+    await create_db_pool()
+
     await bot.set_webhook(
         url=WEBHOOK_URL,
         secret_token=WEBHOOK_SECRET,

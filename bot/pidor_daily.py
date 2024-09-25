@@ -1,7 +1,7 @@
 import random
 from aiogram import types
 from datetime import datetime
-from database.db_pool import create_db_pool, pool
+from database.db_pool import get_db_pool
 from aiogram.enums import ParseMode
 from utils.service_funcs import send_messages_with_delay
 
@@ -11,7 +11,7 @@ async def choose_pidor_of_the_day(message: types.Message):
     chat_id = message.chat.id
     current_year = today.year
 
-    await create_db_pool()
+    pool = get_db_pool()
     async with pool.acquire() as connection:
         fighter_today = await connection.fetchrow(
             "SELECT user_id FROM pidor_of_the_day WHERE telegram_group_id = $1 AND chosen_at = $2",

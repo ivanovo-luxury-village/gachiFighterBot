@@ -1,7 +1,7 @@
 from aiogram import types
 from aiogram.filters.callback_data import CallbackData
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
-from database.db_pool import create_db_pool, pool
+from database.db_pool import get_db_pool
 from bot.setup import bot
 from bot.start_duel import start_duel
 
@@ -40,6 +40,7 @@ async def choose_weapon(message: types.Message, duel_info, user_to_choose):
         ]
     )
 
+    pool = get_db_pool()
     # забираем username для пинга
     async with pool.acquire() as connection:
         username = await connection.fetchval(
@@ -66,6 +67,7 @@ async def weapon_chosen(
     message = callback_query.message
     chat_id = message.chat.id
 
+    pool = get_db_pool()
     # получаем информацию о дуэли по конкретному duel_id
     async with pool.acquire() as connection:
         duel_info = await connection.fetchrow(
