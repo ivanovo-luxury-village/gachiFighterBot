@@ -20,7 +20,7 @@ async def check_expired_duels():
                         AND created_at < $2
                     """,
                     "created", 
-                    current_time - timedelta(minutes=5)
+                    current_time - timedelta(minutes=10)
                 )
 
                 for duel in expired_duels:
@@ -62,7 +62,7 @@ async def check_long_in_progress_duels():
                         AND created_at < $2
                     """,
                     "in progress", 
-                    current_time - timedelta(minutes=10)
+                    current_time - timedelta(minutes=20)
                 )
 
                 for duel in long_in_progress_duels:

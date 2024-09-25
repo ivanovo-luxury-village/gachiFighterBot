@@ -41,7 +41,7 @@ async def accept_duel_command(message: types.Message):
                 chat_id,
                 user_id,
                 "specific",
-                current_time - timedelta(minutes=5),
+                current_time - timedelta(minutes=10),
                 "created"
             )
 
@@ -71,7 +71,7 @@ async def accept_duel_command(message: types.Message):
                     LIMIT 1
                     """,
                     chat_id,
-                    current_time - timedelta(minutes=5),
+                    current_time - timedelta(minutes=10),
                     "open",
                     "created"
                 )
