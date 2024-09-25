@@ -1,4 +1,5 @@
 import asyncio
+from bot.setup import bot
 
 class SafeDict(dict):
     def __missing__(self, key):
