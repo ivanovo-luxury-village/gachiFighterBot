@@ -1,6 +1,6 @@
 --liquibase formatted sql
 --changeset naensamble:new_texts
-INSERT INTO messages
+INSERT INTO messages (message_text, message_order, message_type, scenario_id)
 VALUES
 ('♂Billy♂ свидетель, это был страшный бой... Но тем не менее, {winner_name} смог одолеть {loser_name}, хотя сам чуть не потерпел поражение...'
     , -1, 'FIGHT_RESULT', 8)
