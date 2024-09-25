@@ -409,7 +409,7 @@ async def duel_command(message: types.Message):
             else:
                 logger.info("Open duel created.")
 
-                imgs_folder_path = "./pics"
+                imgs_folder_path = "./media/pics"
                 all_imgs = [
                     os.path.join(imgs_folder_path, file)
                     for file in os.listdir(imgs_folder_path)
@@ -691,7 +691,7 @@ async def start_duel(message: types.Message, duel_info, user_id, chat_id):
     async with pool.acquire() as connection:
         try:
             # отправка GIF-изображений
-            gif_folder_path = "./gifs/duel_progress"
+            gif_folder_path = "./media/gifs/duel_progress"
             all_gifs = [
                 os.path.join(gif_folder_path, file)
                 for file in os.listdir(gif_folder_path)
@@ -818,7 +818,7 @@ async def start_duel(message: types.Message, duel_info, user_id, chat_id):
             )
 
             # выбираем случайную гифку для завершения дуэли
-            finished_gif_folder = "./gifs/duel_finished"
+            finished_gif_folder = "./media/gifs/duel_finished"
             finished_gifs = [
                 os.path.join(finished_gif_folder, file)
                 for file in os.listdir(finished_gif_folder)
