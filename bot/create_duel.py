@@ -134,10 +134,15 @@ async def duel_command(message: types.Message):
                 image_path = random.sample(all_imgs, 1)[0]
 
                 image = FSInputFile(image_path)
+                challenger_username = await connection.fetchval(
+                    "SELECT username FROM users WHERE telegram_group_id = $1 AND id = $2",
+                    chat_id,
+                    challenger_id
+                )
                 await bot.send_photo(
                     chat_id=chat_id,
                     photo=image,
-                    caption="Я новый *♂dungeon master♂*\! Кто не согласен, отзовись или молчи вечно\! /accept\.",
+                    caption="\@"+challenger_username+": Я новый *♂dungeon master♂*\! Кто не согласен, отзовись или молчи вечно\! /accept\.",
                     parse_mode="MarkdownV2",
                 )
 
