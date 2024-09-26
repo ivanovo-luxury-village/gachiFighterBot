@@ -25,12 +25,13 @@ from utils.checks import check_expired_duels, check_long_in_progress_duels
 
 
 commands = [
-    BotCommand(command="pidor", description="Выбрать пидора дня"),
     BotCommand(command="register", description="Зарегистрироваться"),
+    BotCommand(command="pidor", description="Выбрать пидора дня"),
     BotCommand(command="rating", description="Рейтинг пидорасов"),
     BotCommand(command="duel", description="Вызвать побороться"),
     BotCommand(command="accept", description="Принять бой"),
     BotCommand(command="fight_stats", description="Статистика боев"),
+    BotCommand(command="global_fight_stats", description="Глобальная статистика боев"),
 ]
 
 
