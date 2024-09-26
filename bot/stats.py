@@ -2,6 +2,7 @@ from aiogram import types
 from database.db_pool import get_db_pool
 from datetime import datetime
 
+
 async def rating(message: types.Message):
     '''групповой рейтинг пидора дня за актуальный год'''
     pool = get_db_pool()
@@ -75,4 +76,35 @@ async def show_fight_stats(message: types.Message):
             stats_message = "Групповой рейтинг ⚣semen⚣:\n"
             for idx, stat in enumerate(stats, start=1):
                 stats_message += (f"{idx}) {stat['username']} - {stat['current_balance']} мл.\n")
+            await message.reply(stats_message)
+
+
+async def show_global_fight_stats(message: types.Message):
+    '''глобальный рейтинг очков по всем группам'''
+    pool = get_db_pool()
+
+    async with pool.acquire() as connection:
+        stats = await connection.fetch(
+            """
+            SELECT 
+                users.username
+                , SUM(CASE WHEN fight_history.winner_id = users.id THEN 1 ELSE 0 END) AS wins
+                , SUM(CASE WHEN fight_history.loser_id = users.id THEN 1 ELSE 0 END) AS losses
+                , MAX(COALESCE(user_balance.points, 0)) AS max_balance
+            FROM users
+            LEFT JOIN fight_history 
+                ON (users.id = fight_history.winner_id OR users.id = fight_history.loser_id)
+            LEFT JOIN user_balance 
+                ON users.id = user_balance.user_id
+            GROUP BY users.username
+            ORDER BY max_balance DESC
+            """
+        )
+
+        if not stats:
+            await message.reply('Глобальная статистика поединков пока пуста.')
+        else:
+            stats_message = "Глобальный рейтинг ⚣semen⚣:\n"
+            for idx, stat in enumerate(stats, start=1):
+                stats_message += (f"{idx}) {stat['username']} - {stat['max_balance']} мл.\n")
             await message.reply(stats_message)

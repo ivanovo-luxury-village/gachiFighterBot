@@ -16,7 +16,8 @@ from bot.pidor_daily import choose_pidor_of_the_day
 from bot.create_duel import duel_command
 from bot.accept_duel import accept_duel_command
 from bot.weapons import WeaponCallbackData, weapon_chosen
-from bot.stats import show_fight_stats, rating
+from bot.stats import show_fight_stats, show_global_fight_stats, rating
+from bot.release_notes import release
 
 from utils.config import APP_HOST, APP_PORT, WEBHOOK_SECRET, WEBHOOK_URL
 from utils.logger import logger
@@ -42,6 +43,8 @@ async def set_commands():
     dp.message.register(duel_command, Command(commands=["duel"]))
     dp.message.register(accept_duel_command, Command(commands=["accept"]))
     dp.message.register(show_fight_stats, Command(commands=["fight_stats"]))
+    dp.message.register(show_global_fight_stats, Command(commands=["global_fight_stats"]))
+    dp.message.register(release, Command(commands=["release"]))
     dp.callback_query.register(weapon_chosen, WeaponCallbackData.filter())
 
 

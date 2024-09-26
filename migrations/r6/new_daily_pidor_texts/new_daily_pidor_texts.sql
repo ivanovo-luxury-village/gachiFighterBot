@@ -1,0 +1,26 @@
+--liquibase formatted sql
+--changeset naensamble:new_daily_pidor_texts
+INSERT INTO messages (message_text, message_order, message_type, scenario_id)
+VALUES 
+('Woop-woop! That`s the sound of da pidor-police!', 1, 'INIT', 5)
+, ('Военный спутник запущен, коды доступа внутри...', 2, 'INIT', 5)
+, ('Не может быть!', 3, 'INIT', 5)
+, ('Заряжаю магический ♂anal♂ кристалл... почти готово!', 1, 'INIT', 6)
+, ('♂Jabroni♂ доставляет письмо с результатами...', 2, 'INIT', 6)
+, ('Нашли достойного воина!', 3, 'INIT', 6)
+, ('Завариваю чай, настраиваюсь на нужную волну...', 1, 'INIT', 7)
+, ('Карты таро подсказали мне следующее...', 2, 'INIT', 7)
+, ('Сегодня на арене — настоящий ♂dungeon master♂!', 3, 'INIT', 7)
+, ('Разогреваем мышцы, растягиваем ♂biceps♂ – идет серьезный отбор!', 1, 'INIT', 8)
+, ('Чувствую запах... victory! Или это massage oil?', 2, 'INIT', 8)
+, ('Наш champion готов к своим приключениям! Push it, ♂dude♂!', 3, 'INIT', 8)
+, ('Окей, bro, time to shine! Let`s find that ♂pidor♂ next door.', 1, 'INIT', 9)
+, ('Выбор сложный, как решить, чем заняться в пятницу вечером.', 2, 'INIT', 9)
+, ('Boom! Мы нашли его! This dude is ready to rumble!', 3, 'INIT', 9)
+, ('Сканирую чат на наличие ♂real men♂...', 1, 'INIT', 10)
+, ('Как говорил мой батя: "Когда-нибудь ты найдешь пидора", и вот он!', 2, 'INIT', 10)
+, ('Gentlemen, get ready – он в ударе!', 3, 'INIT', 10)
+, ('The search begins… и кто же самый-самый на этот раз?', 1, 'INIT', 11)
+, ('Осторожно, рядом с ним – 100% pure ♂testosterone♂.', 2, 'INIT', 11)
+, ('Boom! Shake-shake the room! Наш парень уже тут!', 3, 'INIT', 11)
+--rollback DELETE FROM messages WHERE message_type = 'INIT' AND scenario_id BETWEEN 5 AND 11
