@@ -5,5 +5,6 @@
         xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.4.xsd">
 
     <include file="new_texts/new_texts.sql" relativeToChangelogFile="true"/>
+    <include file="new_daily_pidor_texts/new_daily_pidor_texts.sql" relativeToChangelogFile="true"/>
 
 </databaseChangeLog>
