@@ -91,8 +91,7 @@ async def duel_command(message: types.Message):
                     return
 
                 await message.reply(
-                    f"@{message.reply_to_message.from_user.username}, *тебе бросили вызов*\! Поборешься с этим ♂jabroni♂\? \(/accept\)",
-                    parse_mode=ParseMode.MARKDOWN_V2,
+                    f"@{message.reply_to_message.from_user.username}, тебе бросили вызов! Поборешься с этим ♂jabroni♂? (/accept)",
                 )
 
             # сценарий 2: упоминание другого пользователя
@@ -117,8 +116,7 @@ async def duel_command(message: types.Message):
                     return
 
                 await message.reply(
-                    f"@{mentioned_username}, *тебе бросили вызов*\! Поборешься с этим ♂jabroni♂\? \(/accept\)",
-                    parse_mode=ParseMode.MARKDOWN_V2,
+                    f"@{mentioned_username}, тебе бросили вызов! Поборешься с этим ♂jabroni♂? (/accept)",
                 )
 
             # сценарий 3: открытая дуэль
@@ -142,8 +140,7 @@ async def duel_command(message: types.Message):
                 await bot.send_photo(
                     chat_id=chat_id,
                     photo=image,
-                    caption="\@"+challenger_username+": Я новый *♂dungeon master♂*\! Кто не согласен, отзовись или молчи вечно\! /accept\.",
-                    parse_mode="MarkdownV2",
+                    caption="@"+challenger_username+": Я новый ⚣dungeon master⚣! Кто не согласен, отзовись или молчи вечно! /accept",
                 )
 
                 result = await connection.execute(
