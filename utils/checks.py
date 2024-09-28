@@ -74,10 +74,10 @@ async def check_long_in_progress_duels():
                         , last_message_id 
                     FROM duel_state 
                     WHERE status = $1 
-                        AND created_at < $2
+                        AND updated_at < $2
                     """,
                     "in progress", 
-                    current_time - timedelta(minutes=20)
+                    current_time - timedelta(minutes=10)
                 )
 
                 for duel in long_in_progress_duels:
