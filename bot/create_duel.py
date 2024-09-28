@@ -67,6 +67,8 @@ async def duel_command(message: types.Message):
 
             challenged_id = None
             mentioned_username = None
+            duel_id = None
+            message_id = None
 
             # сценарий 1: ответ на сообщение
             if message.reply_to_message:
@@ -90,9 +92,10 @@ async def duel_command(message: types.Message):
                     await message.reply("Ты не можешь вызвать на бой самого себя.")
                     return
 
-                await message.reply(
+                sent_message = await message.reply(
                     f"@{message.reply_to_message.from_user.username}, тебе бросили вызов! Поборешься с этим ♂jabroni♂? (/accept)",
                 )
+                message_id = sent_message.message_id
 
             # сценарий 2: упоминание другого пользователя
             elif len(message.text.split()) > 1:
@@ -115,9 +118,10 @@ async def duel_command(message: types.Message):
                     await message.reply("Ты не можешь вызвать на бой самого себя.")
                     return
 
-                await message.reply(
+                sent_message = await message.reply(
                     f"@{mentioned_username}, тебе бросили вызов! Поборешься с этим ♂jabroni♂? (/accept)",
                 )
+                message_id = sent_message.message_id
 
             # сценарий 3: открытая дуэль
             else:
@@ -137,40 +141,51 @@ async def duel_command(message: types.Message):
                     chat_id,
                     challenger_id
                 )
-                await bot.send_photo(
+                sent_message = await bot.send_photo(
                     chat_id=chat_id,
                     photo=image,
                     caption="@"+challenger_username+": Я новый ⚣dungeon master⚣! Кто не согласен, отзовись или молчи вечно! /accept",
                 )
+                message_id = sent_message.message_id
 
-                result = await connection.execute(
+                duel_id = await connection.fetchval(
                     """
-                    INSERT INTO duel_state (challenger_id, challenged_id, duel_type, telegram_group_id, status) 
-                    VALUES ($1, $2, $3, $4, $5)
+                    INSERT INTO duel_state (challenger_id, challenged_id, duel_type, telegram_group_id, status, last_message_id) 
+                    VALUES ($1, $2, $3, $4, $5, $6) RETURNING id
                     """,
                     challenger_id,
                     None,
                     "open",
                     chat_id,
-                    "created"
+                    "created",
+                    message_id
                 )
-                logger.info(f"Open Duel Insert Result: {result}")
+                logger.info(f"Open Duel Insert Result: {duel_id}")
                 return
 
             # добавление дуэли в базу (кроме открытой дуэли)
             if challenged_id is not None:
-                result = await connection.execute(
+                duel_id = await connection.fetchval(
                     """
-                    INSERT INTO duel_state (challenger_id, challenged_id, duel_type, telegram_group_id, status) 
-                    VALUES ($1, $2, $3, $4, $5)
+                    INSERT INTO duel_state (challenger_id, challenged_id, duel_type, telegram_group_id, status, last_message_id) 
+                    VALUES ($1, $2, $3, $4, $5, $6) RETURNING id
                     """,
                     challenger_id,
                     challenged_id,
                     "specific",
                     chat_id,
-                    "created"
+                    "created",
+                    message_id
                 )
-                logger.info(f"Duel Insert Result: {result}")
+                logger.info(f"Duel Insert Result: {duel_id}")
+
+            # обновляем last_message_id в таблице duel_state
+            async with pool.acquire() as connection:
+                await connection.execute(
+                    "UPDATE duel_state SET last_message_id = $1 WHERE id = $2",
+                    message_id,
+                    duel_id,
+                )
 
         except Exception as e:
             logger.error(f"Error in duel_command: {e}")

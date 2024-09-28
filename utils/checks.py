@@ -2,25 +2,27 @@ import asyncio
 from datetime import datetime, timedelta
 from utils.logger import logger
 from database.db_pool import get_db_pool
-
+from bot.setup import bot
 
 async def check_expired_duels():
     '''функция отвечающая за проверку просроченных дуэлей'''
     pool = get_db_pool()
     while True:
         try:
-            current_time = datetime.utcnow()
+            current_time = datetime.utcnow() # на dev стенде использовать .now()
 
             async with pool.acquire() as connection:
                 expired_duels = await connection.fetch(
                     """
-                    SELECT id 
+                    SELECT id
+                        , telegram_group_id
+                        , last_message_id 
                     FROM duel_state 
                     WHERE status = $1 
                         AND created_at < $2
                     """,
                     "created", 
-                    current_time - timedelta(minutes=10)
+                    current_time - timedelta(minutes=15)
                 )
 
                 for duel in expired_duels:
@@ -33,6 +35,17 @@ async def check_expired_duels():
                         "expired (not accepted)",
                         duel['id']
                     )
+                    # удаляем сообщение с созданной дуэлью
+                    if duel['last_message_id']:
+                        try:
+                            await bot.delete_message(
+                                chat_id=duel['telegram_group_id'], 
+                                message_id=duel['last_message_id']
+                            )
+                            logger.info(f"Deleted message {duel['last_message_id']} for expired duel (not accepted) {duel['id']}")
+                        except Exception as e:
+                            logger.error(f"Error deleting message for expired (not accepted) duel {duel['id']}: {e}")
+
                 logger.info(f"updated {len(expired_duels)} duel with status 'expired (not accepted)'")
                 
         except Exception as e:
@@ -51,12 +64,14 @@ async def check_long_in_progress_duels():
                 await asyncio.sleep(5)  # Подождем перед повторной проверкой
                 continue
             
-            current_time = datetime.utcnow()
+            current_time = datetime.utcnow() # на dev стенде использовать .now()
 
             async with pool.acquire() as connection:
                 long_in_progress_duels = await connection.fetch(
                     """
-                    SELECT id 
+                    SELECT id
+                        , telegram_group_id
+                        , last_message_id 
                     FROM duel_state 
                     WHERE status = $1 
                         AND created_at < $2
@@ -75,6 +90,18 @@ async def check_long_in_progress_duels():
                         "expired (not finished)",
                         duel['id']
                     )
+
+                    # удаляем сообщение с кнопками
+                    if duel['last_message_id']:
+                        try:
+                            await bot.delete_message(
+                                chat_id=duel['telegram_group_id'], 
+                                message_id=duel['last_message_id']
+                            )
+                            logger.info(f"Deleted message {duel['last_message_id']} for expired duel (not finished) {duel['id']}")
+                        except Exception as e:
+                            logger.error(f"Error deleting message for expired (not finished) duel {duel['id']}: {e}")
+
                 logger.info(f"updated {len(long_in_progress_duels)} duel with status 'expired (not finished)'")
                 
         except Exception as e:
