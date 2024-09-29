@@ -108,7 +108,7 @@ async def callback_accept_duel(query: CallbackQuery, callback_data: DuelCallback
                 await query.message.delete()
                 
                 # создаем новое сообщение
-                message = await query.message.answer("Выбор оружия начался...")
+                message = await query.message.answer("Дуэль принята.")
                 await choose_weapon(message, duel_info, duel_info["challenger_id"])
 
             elif callback_data.action == "decline":
