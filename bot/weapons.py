@@ -131,7 +131,7 @@ async def weapon_chosen(callback_query: CallbackQuery, callback_data: WeaponCall
             await start_duel(new_message, duel_info, user_id, chat_id)
 
             # удаляем временное сообщение
-            #await bot.delete_message(chat_id=chat_id, message_id=new_message.message_id)
+            await bot.delete_message(chat_id=chat_id, message_id=new_message.message_id)
 
         else:
             # если это не их очередь выбирать

@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime, timedelta
 from aiogram.types import CallbackQuery
 from database.db_pool import get_db_pool
@@ -114,6 +115,7 @@ async def callback_accept_duel(query: CallbackQuery, callback_data: DuelCallback
                 await choose_weapon(message, duel_info, duel_info["challenger_id"])
 
                 # удаляем временное сообщение
+                await asyncio.sleep(2)
                 await bot.delete_message(chat_id=chat_id, message_id=message.message_id)
 
             elif callback_data.action == "decline":
@@ -127,6 +129,8 @@ async def callback_accept_duel(query: CallbackQuery, callback_data: DuelCallback
                 )
                 await query.message.edit_reply_markup(reply_markup=None)
                 await query.message.answer("Дуэль отклонена.")
+                await asyncio.sleep(2)
+                await query.message.delete()
 
         except Exception as e:
             logger.error(f"Error in callback_accept_duel: {e}")
