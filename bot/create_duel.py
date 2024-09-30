@@ -1,6 +1,5 @@
 import os
 import random
-from datetime import datetime, timedelta, timezone
 from aiogram import types
 from aiogram.types import FSInputFile, InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.filters.callback_data import CallbackData
@@ -40,7 +39,7 @@ async def duel_command(message: types.Message):
             # проверка на активные дуэли
             if await check_active_duels(chat_id):
                 await message.reply(
-                    "Пока ⚣побороться⚣ не получится, подожди пока закончатся текущие бои."
+                    "Пока ⚣побороться⚣ не получится, подожди завершения текущих боев."
                 )
                 return
             
@@ -68,7 +67,6 @@ async def duel_command(message: types.Message):
                     await message.reply(
                         "Пользователь, которому ты бросил вызов, не зарегистрирован."
                     )
-                    logger.info("Challenged user is not registered.")
                     return
 
                 # проверка, чтобы пользователь не мог вызвать сам себя на дуэль

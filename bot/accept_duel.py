@@ -25,8 +25,7 @@ async def callback_accept_duel(query: CallbackQuery, callback_data: DuelCallback
                 await query.answer("Ты не зарегистрирован. Используй команду /register, чтобы зарегистрироваться.", show_alert=True)
                 return
 
-            # current_time = datetime.utcnow() # на dev стенде использовать .now()
-            current_time = datetime.now()
+            current_time = datetime.utcnow() # на dev стенде использовать .now()
             
             if callback_data.action == "accept":
                 # сценарий 1 & 2: принятие вызова на конкретную дуэль
@@ -116,7 +115,6 @@ async def callback_accept_duel(query: CallbackQuery, callback_data: DuelCallback
                     await query.answer("Ты не можешь отклонить эту дуэль.", show_alert=True)
                     return
 
-                # логика отклонения дуэли
                 await connection.execute(
                     "UPDATE duel_state SET status = 'declined' WHERE id = $1",
                     duel_id
