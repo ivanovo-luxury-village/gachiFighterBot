@@ -269,6 +269,3 @@ async def duel_command(message: types.Message):
 
         except Exception as e:
             logger.error(f"Error in duel_command: {e}")
-            await message.reply(
-                "Произошла ошибка при создании дуэли. Попробуй еще раз."
-            )

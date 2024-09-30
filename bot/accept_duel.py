@@ -136,5 +136,3 @@ async def callback_accept_duel(query: CallbackQuery, callback_data: DuelCallback
 
         except Exception as e:
             logger.error(f"Error in callback_accept_duel: {e}")
-            await query.message.answer("Произошла ошибка при обработке дуэли.")
-            await query.answer("Произошла ошибка при принятии дуэли. Попробуйте еще раз.", show_alert=True)

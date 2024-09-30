@@ -54,11 +54,11 @@ async def slap_command(message: types.Message):
         )
         
         if not pidor_today:
-            await message.reply("<b>Пидор дня</b> еще не выбран!", parse_mode='HTML')
+            await message.reply("<b>Пидор</b> дня еще не выбран!", parse_mode='HTML')
             return
 
         if pidor_today['user_id'] != slapper_user_id:
-            await message.reply("Только <b>пидор дня</b> может выполнить удар!", parse_mode='HTML')
+            await message.reply("Только <b>пидор</b> дня может выполнить удар!", parse_mode='HTML')
             return
         
         last_slap_time = await connection.fetchval(
@@ -118,7 +118,7 @@ async def slap_command(message: types.Message):
 ⣿⣿⡿⠛⠉⠁⠄⢕⡳⣽⡾⣿⢽⣯⡿⣮⢚⣅⠹⣿⣿⣿
 ⡿⠋⠄⠄⠄⠄⢀⠒⠝⣞⢿⡿⣿⣽⢿⡽⣧⣳⡅⠌⠻⣿
 ⠁⠄⠄⠄⠄⠄⠐⡐⠱⡱⣻⡻⣝⣮⣟⣿⣻⣟⣻⡺⣊
-@{message.from_user.username} ударил своим ♂Dick♂ @{mentioned_username} и отнял {points_to_deduct} ⚣semen⚣!
+@{message.from_user.username} <b>ударил</b> своим ♂Dick♂ @{mentioned_username} и отнял {points_to_deduct} ⚣semen⚣!
 Такого в ⚣gym⚣ обычно не прощают!
 """
-    await bot.send_message(chat_id, message_text)
+    await bot.send_message(chat_id, message_text, parse_mode='HTML')
