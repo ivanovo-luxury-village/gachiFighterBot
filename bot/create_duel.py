@@ -6,6 +6,7 @@ from aiogram.types import FSInputFile, InlineKeyboardButton, InlineKeyboardMarku
 from aiogram.filters.callback_data import CallbackData
 from database.db_pool import get_db_pool
 from utils.logger import logger
+from utils.checks import check_active_duels, check_last_finished_duel
 from bot.setup import bot
 
 
@@ -36,42 +37,19 @@ async def duel_command(message: types.Message):
                 )
                 return
 
-            # cooldown 1: если есть 2 дуэли со статусами 'created' или 'in progress'
-            active_duels_count = await connection.fetchval(
-                """
-                SELECT COUNT(*) 
-                FROM duel_state 
-                WHERE telegram_group_id = $1 
-                    AND status IN ('created', 'in progress')
-                """,
-                chat_id,
-            )
-
-            if active_duels_count >= 2:
+            # проверка на активные дуэли
+            if await check_active_duels(chat_id):
                 await message.reply(
                     "Пока ⚣побороться⚣ не получится, подожди пока закончатся текущие бои."
                 )
                 return
             
-            # cooldown 2: если прошло менее 3 минут с последней дуэли 'finished'
-            last_finished_duel_time = await connection.fetchval(
-                """
-                SELECT MAX(created_at)
-                FROM duel_state 
-                WHERE telegram_group_id = $1 
-                    AND status = 'finished'
-                """,
-                chat_id,
-            )
-
-            if last_finished_duel_time:
-                current_time = datetime.now(timezone.utc)
-                time_since_last_duel = current_time - last_finished_duel_time
-                if time_since_last_duel < timedelta(minutes=3):
-                    await message.reply(
-                        "Нужен перерыв между ⚣борьбой⚣, попробуй через пару минут"
-                    )
-                    return
+            # проверка на время последней завершенной дуэли
+            if await check_last_finished_duel(chat_id):
+                await message.reply(
+                    "Нужен перерыв между ⚣борьбой⚣, попробуй через пару минут"
+                )
+                return
 
             challenged_id = None
             mentioned_username = None

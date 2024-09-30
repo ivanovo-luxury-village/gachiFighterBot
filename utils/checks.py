@@ -1,5 +1,5 @@
 import asyncio 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from utils.logger import logger
 from database.db_pool import get_db_pool
 from bot.setup import bot
@@ -108,3 +108,41 @@ async def check_long_in_progress_duels():
             logger.error(f"Error in check_long_in_progress_duels: {e}")
         
         await asyncio.sleep(30)  # проверка каждые 30 секунд
+
+
+async def check_active_duels(chat_id: int) -> bool:
+    '''проверяет количество активных дуэлей'''
+    pool = get_db_pool()
+    async with pool.acquire() as connection:
+        active_duels_count = await connection.fetchval(
+            """
+            SELECT COUNT(*) 
+            FROM duel_state 
+            WHERE telegram_group_id = $1 
+                AND status IN ('created', 'in progress')
+            """,
+            chat_id,
+        )
+    return active_duels_count >= 2
+
+
+async def check_last_finished_duel(chat_id: int) -> bool:
+    '''проверяет время последней завершенной дуэли'''
+    pool = get_db_pool()
+    async with pool.acquire() as connection:
+        last_finished_duel_time = await connection.fetchval(
+            """
+            SELECT MAX(created_at)
+            FROM duel_state 
+            WHERE telegram_group_id = $1 
+                AND status = 'finished'
+            """,
+            chat_id,
+        )
+    
+    if last_finished_duel_time:
+        current_time = datetime.now(timezone.utc)
+        time_since_last_duel = current_time - last_finished_duel_time
+        return time_since_last_duel < timedelta(minutes=3)
+    
+    return False
