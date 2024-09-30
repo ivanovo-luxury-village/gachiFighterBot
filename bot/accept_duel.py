@@ -58,6 +58,7 @@ async def callback_accept_duel(query: CallbackQuery, callback_data: DuelCallback
                     
                     if duel_info['challenged_id'] != user_id:
                         await query.answer("Ты не можешь принять не свою дуэль.", show_alert=True)
+                        return
 
                 # сценарий 3: принятие открытой дуэли
                 elif callback_data.duel_type == "open":
