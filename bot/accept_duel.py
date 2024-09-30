@@ -128,9 +128,11 @@ async def callback_accept_duel(query: CallbackQuery, callback_data: DuelCallback
                     duel_id
                 )
                 await query.message.edit_reply_markup(reply_markup=None)
-                await query.message.answer("Дуэль отклонена.")
-                await asyncio.sleep(2)
+                decline_message = await query.message.answer("Дуэль отклонена.")
+                await asyncio.sleep(10)
                 await query.message.delete()
+                await asyncio.sleep(30)
+                await bot.delete_message(chat_id=decline_message.chat.id, message_id=decline_message.message_id)
 
         except Exception as e:
             logger.error(f"Error in callback_accept_duel: {e}")
