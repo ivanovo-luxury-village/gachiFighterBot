@@ -1,5 +1,6 @@
 import os
 import random
+from typing import Optional
 from aiogram import types
 from aiogram.types import FSInputFile, InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.filters.callback_data import CallbackData
@@ -13,7 +14,7 @@ class DuelCallbackData(CallbackData, prefix="duel"):
     id: int
     action: str
     challenger_id: int
-    challenged_id: int | None
+    challenged_id: Optional[int]
     chat_id: int
     duel_type: str
 
