@@ -13,10 +13,11 @@ from contextlib import asynccontextmanager
 from bot.setup import bot, dp
 from bot.register import register_user
 from bot.pidor_daily import choose_pidor_of_the_day
-from bot.create_duel import duel_command
-from bot.accept_duel import accept_duel_command
+from bot.create_duel import duel_command, DuelCallbackData
+from bot.accept_duel import callback_accept_duel
 from bot.weapons import WeaponCallbackData, weapon_chosen
 from bot.stats import show_fight_stats, show_global_fight_stats, rating
+from bot.slap import slap_command
 from bot.release_notes import release
 
 from utils.config import APP_HOST, APP_PORT, WEBHOOK_SECRET, WEBHOOK_URL
@@ -29,7 +30,7 @@ commands = [
     BotCommand(command="pidor", description="Выбрать пидора дня"),
     BotCommand(command="rating", description="Рейтинг пидорасов"),
     BotCommand(command="duel", description="Вызвать побороться"),
-    BotCommand(command="accept", description="Принять бой"),
+    BotCommand(command="slap", description="Ударить членом"),
     BotCommand(command="fight_stats", description="Статистика боев"),
     BotCommand(command="global_fight_stats", description="Глобальная статистика боев"),
 ]
@@ -42,10 +43,11 @@ async def set_commands():
     dp.message.register(choose_pidor_of_the_day, Command(commands=["pidor"]))
     dp.message.register(rating, Command(commands=["rating"]))
     dp.message.register(duel_command, Command(commands=["duel"]))
-    dp.message.register(accept_duel_command, Command(commands=["accept"]))
+    dp.message.register(slap_command, Command(commands=["slap"]))
     dp.message.register(show_fight_stats, Command(commands=["fight_stats"]))
     dp.message.register(show_global_fight_stats, Command(commands=["global_fight_stats"]))
     dp.message.register(release, Command(commands=["release"]))
+    dp.callback_query.register(callback_accept_duel, DuelCallbackData.filter())
     dp.callback_query.register(weapon_chosen, WeaponCallbackData.filter())
 
 

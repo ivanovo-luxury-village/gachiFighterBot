@@ -2,7 +2,6 @@ import random
 from aiogram import types
 from datetime import datetime
 from database.db_pool import get_db_pool
-from aiogram.enums import ParseMode
 from utils.service_funcs import send_messages_with_delay
 
 async def choose_pidor_of_the_day(message: types.Message):
@@ -26,8 +25,7 @@ async def choose_pidor_of_the_day(message: types.Message):
                 fighter_today["user_id"],
             )
             await message.reply(
-                f'Согласно моей информации, по результатам сегодняшнего розыгрыша *пидор* дня: @{user["username"]}',
-                parse_mode=ParseMode.MARKDOWN_V2,
+                f'Согласно моей информации, по результатам сегодняшнего розыгрыша пидор дня: @{user["username"]}'
             )
         else:
             users = await connection.fetch(

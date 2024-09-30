@@ -190,4 +190,3 @@ async def start_duel(message: types.Message, duel_info, user_id, chat_id):
                 chat_id,
                 duel_info["id"],
             )
-            await message.reply("Произошла ошибка в ходе дуэли. Попробуйте еще раз.")
