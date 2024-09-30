@@ -124,11 +124,14 @@ async def weapon_chosen(callback_query: CallbackQuery, callback_data: WeaponCall
             # удаляем сообщение с кнопками выбора оружия
             await bot.delete_message(chat_id=chat_id, message_id=message.message_id)
 
-            # создаем новое сообщение о начале дуэли
+            # создаем временное сообщение о начале дуэли
             new_message = await bot.send_message(chat_id, "Борьба началась!")
 
             # начинаем дуэль после выбора оружия
             await start_duel(new_message, duel_info, user_id, chat_id)
+
+            # удаляем временное сообщение
+            #await bot.delete_message(chat_id=chat_id, message_id=new_message.message_id)
 
         else:
             # если это не их очередь выбирать

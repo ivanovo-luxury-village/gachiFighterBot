@@ -4,6 +4,7 @@ from database.db_pool import get_db_pool
 from utils.logger import logger
 from bot.create_duel import DuelCallbackData
 from bot.weapons import choose_weapon
+from bot.setup import bot
 
 
 async def callback_accept_duel(query: CallbackQuery, callback_data: DuelCallbackData):
@@ -107,9 +108,13 @@ async def callback_accept_duel(query: CallbackQuery, callback_data: DuelCallback
                 # удаляем сообщение о создании дуэли
                 await query.message.delete()
                 
-                # создаем новое сообщение
+                # создаем временное сообщение
                 message = await query.message.answer("Дуэль принята.")
+                
                 await choose_weapon(message, duel_info, duel_info["challenger_id"])
+
+                # удаляем временное сообщение
+                await bot.delete_message(chat_id=chat_id, message_id=message.message_id)
 
             elif callback_data.action == "decline":
                 if challenged_id != user_id:
