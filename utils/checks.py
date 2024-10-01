@@ -143,6 +143,6 @@ async def check_last_finished_duel(chat_id: int) -> bool:
     if last_finished_duel_time:
         current_time = datetime.now(timezone.utc)
         time_since_last_duel = current_time - last_finished_duel_time
-        return time_since_last_duel < timedelta(minutes=3)
+        return time_since_last_duel < timedelta(minutes=2)
     
     return False

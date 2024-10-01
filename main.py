@@ -28,9 +28,9 @@ from utils.checks import check_expired_duels, check_long_in_progress_duels
 commands = [
     BotCommand(command="register", description="Зарегистрироваться"),
     BotCommand(command="pidor", description="Выбрать пидора дня"),
-    BotCommand(command="rating", description="Рейтинг пидорасов"),
-    BotCommand(command="duel", description="Вызвать побороться"),
-    BotCommand(command="slap", description="Ударить членом"),
+    BotCommand(command="rating", description="Рейтинг пидоров"),
+    BotCommand(command="fight", description="Вызвать побороться"),
+    BotCommand(command="hit", description="Ударить членом по лбу"),
     BotCommand(command="fight_stats", description="Статистика боев"),
     BotCommand(command="global_fight_stats", description="Глобальная статистика боев"),
 ]
@@ -42,8 +42,8 @@ async def set_commands():
     dp.message.register(register_user, Command(commands=["register"]))
     dp.message.register(choose_pidor_of_the_day, Command(commands=["pidor"]))
     dp.message.register(rating, Command(commands=["rating"]))
-    dp.message.register(duel_command, Command(commands=["duel"]))
-    dp.message.register(slap_command, Command(commands=["slap"]))
+    dp.message.register(duel_command, Command(commands=["fight"]))
+    dp.message.register(slap_command, Command(commands=["hit"]))
     dp.message.register(show_fight_stats, Command(commands=["fight_stats"]))
     dp.message.register(show_global_fight_stats, Command(commands=["global_fight_stats"]))
     dp.message.register(release, Command(commands=["release"]))
