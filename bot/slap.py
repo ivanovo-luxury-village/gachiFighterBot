@@ -67,7 +67,7 @@ async def slap_command(message: types.Message):
             slapper_user_id,
         )
         
-        if last_slap_time and (datetime.utcnow() - last_slap_time).days < 1:
+        if last_slap_time and last_slap_time.date() == today:
             await message.reply("Ты можешь ударить только раз в день!")
             return
 
