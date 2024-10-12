@@ -10,7 +10,7 @@ from utils.logger import logger
 from bot.setup import bot
 
 
-async def start_duel(message: types.Message, duel_info, user_id, chat_id):
+async def start_duel(message: types.Message, duel_info, chat_id, winner):
     pool = get_db_pool()
     async with pool.acquire() as connection:
         try:
@@ -45,13 +45,14 @@ async def start_duel(message: types.Message, duel_info, user_id, chat_id):
                 chat_id=message.chat.id, message_id=sent_message.message_id
             )
 
-            # рандомный выбор победителя и обновление баланса
-            winner_id = random.choice([duel_info["challenger_id"], user_id])
-            loser_id = (
-                duel_info["challenger_id"]
-                if winner_id != duel_info["challenger_id"]
-                else user_id
-            )
+            # выбор победителя исходя из выбранного оружия и обновление баланса
+            if winner == "challenger":
+                winner_id = duel_info["challenger_id"]
+                loser_id = duel_info["challenged_id"]
+            else:
+                winner_id = duel_info["challenged_id"]
+                loser_id = duel_info["challenger_id"]
+
             points = approx_points()
 
             # если у проигравшего нет столько очков на балансе сколько он проиграл - обнуляем его баланс

@@ -11,7 +11,7 @@ async def slap_command(message: types.Message):
     
     # проверка наличия упоминания пользователя через @
     if not message.entities or not any(entity.type == "mention" for entity in message.entities):
-        await message.reply("Упомяни через @!")
+        await message.reply("Нужно упомянуть игрока (/hit @username)")
         return
     
     # получение имени упомянутого пользователя из текста сообщения
