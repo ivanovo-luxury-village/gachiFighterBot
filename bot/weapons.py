@@ -1,3 +1,4 @@
+import asyncio
 from aiogram import types
 from aiogram.filters.callback_data import CallbackData
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
@@ -124,15 +125,57 @@ async def weapon_chosen(callback_query: CallbackQuery, callback_data: WeaponCall
             # удаляем сообщение с кнопками выбора оружия
             await bot.delete_message(chat_id=chat_id, message_id=message.message_id)
 
-            # создаем временное сообщение о начале дуэли
-            new_message = await bot.send_message(chat_id, "Борьба началась!")
+            # проверка результата дуэли
+            winner = determine_winner(duel_info["challenger_weapon"], weapon)
 
-            # начинаем дуэль после выбора оружия
-            await start_duel(new_message, duel_info, user_id, chat_id)
+            if winner == "draw":
+                # если ничья, сбрасываем выбор оружия
+                await connection.execute(
+                    """
+                    UPDATE duel_state
+                    SET challenger_weapon = NULL, challenged_weapon = NULL
+                    WHERE id = $1
+                    """,
+                    duel_info["id"],
+                )
 
-            # удаляем временное сообщение
-            await bot.delete_message(chat_id=chat_id, message_id=new_message.message_id)
+                # если ничья, отправляем сообщение и начинаем выбор оружия заново
+                draw_message = await bot.send_message(chat_id, "Ничья, ⚣борьба⚣ продолжается")
+                
+                # удаляем сообщение о ничьей через 2.5 секунд
+                await asyncio.sleep(2.5)
+                await bot.delete_message(chat_id=chat_id, message_id=draw_message.message_id)
+
+                # начинаем выбор оружия заново
+                await choose_weapon(message, duel_info, duel_info["challenger_id"])
+            
+            else:
+                # создаем временное сообщение о начале дуэли
+                new_message = await bot.send_message(chat_id, "⚣Борьба⚣ началась!")
+
+                # начинаем дуэль после выбора оружия
+                await start_duel(new_message, duel_info, chat_id, winner)
+
+                # удаляем временное сообщение
+                await bot.delete_message(chat_id=chat_id, message_id=new_message.message_id)
 
         else:
             # если это не их очередь выбирать
             await callback_query.answer("Сейчас не твоя очередь выбирать оружие.", show_alert=True)
+
+
+def determine_winner(challenger_weapon: str, challenged_weapon: str) -> str:
+    '''определяет победителя на основе выбранных оружий'''
+    if challenger_weapon == challenged_weapon:
+        return "draw"
+
+    winning_combinations = {
+        "Dick": "Ass",
+        "Ass": "Finger",
+        "Finger": "Dick",
+    }
+
+    if winning_combinations[challenger_weapon] == challenged_weapon:
+        return "challenger"
+    else:
+        return "challenged"

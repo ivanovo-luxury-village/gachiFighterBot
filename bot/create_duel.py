@@ -45,9 +45,10 @@ async def duel_command(message: types.Message):
                 return
             
             # проверка на время последней завершенной дуэли
-            if await check_last_finished_duel(chat_id):
+            remaining_seconds = await check_last_finished_duel(chat_id)
+            if remaining_seconds is not None:
                 await message.reply(
-                    "Нужен перерыв между ⚣борьбой⚣, попробуй через пару минут"
+                    f"Нужен перерыв между ⚣борьбой⚣, попробуй через {remaining_seconds} секунд"
                 )
                 return
 

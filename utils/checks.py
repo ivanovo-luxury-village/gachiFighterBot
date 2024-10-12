@@ -45,8 +45,6 @@ async def check_expired_duels():
                             logger.info(f"Deleted message {duel['last_message_id']} for expired duel (not accepted) {duel['id']}")
                         except Exception as e:
                             logger.error(f"Error deleting message for expired (not accepted) duel {duel['id']}: {e}")
-
-                logger.info(f"updated {len(expired_duels)} duel with status 'expired (not accepted)'")
                 
         except Exception as e:
             logger.error(f"Error in check_expired_duels: {e}")
@@ -101,8 +99,6 @@ async def check_long_in_progress_duels():
                             logger.info(f"Deleted message {duel['last_message_id']} for expired duel (not finished) {duel['id']}")
                         except Exception as e:
                             logger.error(f"Error deleting message for expired (not finished) duel {duel['id']}: {e}")
-
-                logger.info(f"updated {len(long_in_progress_duels)} duel with status 'expired (not finished)'")
                 
         except Exception as e:
             logger.error(f"Error in check_long_in_progress_duels: {e}")
@@ -143,6 +139,10 @@ async def check_last_finished_duel(chat_id: int) -> bool:
     if last_finished_duel_time:
         current_time = datetime.now(timezone.utc)
         time_since_last_duel = current_time - last_finished_duel_time
-        return time_since_last_duel < timedelta(minutes=2)
-    
-    return False
+        cooldown_time = timedelta(minutes=2)
+
+        if time_since_last_duel < cooldown_time:
+            remaining_time = cooldown_time - time_since_last_duel
+            return int(remaining_time.total_seconds())
+
+    return None
