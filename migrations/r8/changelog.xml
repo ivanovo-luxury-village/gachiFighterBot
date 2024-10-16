@@ -5,5 +5,6 @@
         xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.4.xsd">
 
     <include file="slap/slap.sql" relativeToChangelogFile="true"/>
+    <include file="new_fight_texts/new_fight_texts.sql" relativeToChangelogFile="true"/>
 
 </databaseChangeLog>
