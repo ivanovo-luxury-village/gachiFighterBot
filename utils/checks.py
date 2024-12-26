@@ -139,7 +139,7 @@ async def check_last_finished_duel(chat_id: int) -> bool:
     if last_finished_duel_time:
         current_time = datetime.now(timezone.utc)
         time_since_last_duel = current_time - last_finished_duel_time
-        cooldown_time = timedelta(minutes=2)
+        cooldown_time = timedelta(minutes=3)
 
         if time_since_last_duel < cooldown_time:
             remaining_time = cooldown_time - time_since_last_duel
