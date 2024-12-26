@@ -137,8 +137,8 @@ async def start_duel(message: types.Message, duel_info, chat_id, winner):
 
             # формируем сообщение о результате дуэли
             result_message = (
-                f"@{winner_name} {winner_balance_after} (+{points}) мл.\n"
-                f"@{loser_name} {loser_balance_after} (-{points}) мл.\n\n"
+                f"@{winner_name}: {winner_balance_after} (+{points}) мл.\n"
+                f"@{loser_name}: {loser_balance_after} (-{points}) мл.\n\n"
                 f"{fight_result_message}"
             )
 
