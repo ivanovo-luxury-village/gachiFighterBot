@@ -118,7 +118,7 @@ async def slap_command(message: types.Message):
 ⣿⣿⡿⠛⠉⠁⠄⢕⡳⣽⡾⣿⢽⣯⡿⣮⢚⣅⠹⣿⣿⣿
 ⡿⠋⠄⠄⠄⠄⢀⠒⠝⣞⢿⡿⣿⣽⢿⡽⣧⣳⡅⠌⠻⣿
 ⠁⠄⠄⠄⠄⠄⠐⡐⠱⡱⣻⡻⣝⣮⣟⣿⣻⣟⣻⡺⣊
-@{message.from_user.username} <b>ударил</b> своим ♂Dick♂ по лбу @{mentioned_username} и отнял {points_to_deduct} ⚣semen⚣!
+@{message.from_user.username} <b>ударил</b> своим ♂Dick♂ по лбу @{mentioned_username} и отнял {points_to_deduct} мл. ⚣semen⚣!
 Такого в ⚣gym⚣ обычно не прощают!
 """
     await bot.send_message(chat_id, message_text, parse_mode='HTML')
