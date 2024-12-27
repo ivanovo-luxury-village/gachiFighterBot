@@ -75,7 +75,7 @@ async def show_fight_stats(message: types.Message):
         else:
             stats_message = "Групповой рейтинг ⚣semen⚣:\n"
             for idx, stat in enumerate(stats, start=1):
-                stats_message += (f"{idx}) {stat['username']} - {stat['current_balance']} мл.\n")
+                stats_message += (f"{idx}) {stat['username']}: {stat['current_balance']} мл.\n")
             await message.reply(stats_message)
 
 

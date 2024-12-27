@@ -161,7 +161,7 @@ async def weapon_chosen(callback_query: CallbackQuery, callback_data: WeaponCall
 
         else:
             # если это не их очередь выбирать
-            await callback_query.answer("Сейчас не твоя очередь выбирать оружие.", show_alert=True)
+            await callback_query.answer("Ты ошибся ходом, дружок-пирожок, сейчас не твой ход. Жди своей очереди, ♂fucking slave♂", show_alert=True)
 
 
 def determine_winner(challenger_weapon: str, challenged_weapon: str) -> str:

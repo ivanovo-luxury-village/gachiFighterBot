@@ -6,6 +6,7 @@ from utils.logger import logger
 from bot.create_duel import DuelCallbackData
 from bot.weapons import choose_weapon
 from bot.setup import bot
+from utils.checks import check_user_balance
 
 
 async def callback_accept_duel(query: CallbackQuery, callback_data: DuelCallbackData):
@@ -62,6 +63,14 @@ async def callback_accept_duel(query: CallbackQuery, callback_data: DuelCallback
                         await query.answer("Ты не можешь принять не свою дуэль.", show_alert=True)
                         return
 
+                    # проверка достаточного количество semen
+                    if await check_user_balance(chat_id, user_id):
+                        await query.answer(
+                            "Ты нищий и не можешь бороться. Займи ⚣semen⚣ у других ⚣masters⚣ или заработай иным способом",
+                            show_alert=True
+                        )
+                        return
+
                 # сценарий 3: принятие открытой дуэли
                 elif callback_data.duel_type == "open":
                     duel_info = await connection.fetchrow(
@@ -88,6 +97,14 @@ async def callback_accept_duel(query: CallbackQuery, callback_data: DuelCallback
 
                     if duel_info["challenger_id"] == user_id:
                         await query.answer("Ты не можешь принять бой с самим собой.", show_alert=True)
+                        return
+                    
+                    # проверка достаточного количество semen
+                    if await check_user_balance(chat_id, user_id):
+                        await query.answer(
+                            "Ты нищий и не можешь бороться. Займи ⚣semen⚣ у других ⚣masters⚣ или заработай иным способом",
+                            show_alert=True
+                        )
                         return
 
                     # обновляем запись, добавляем challenged_id
