@@ -78,21 +78,36 @@ async def handle_debt_amount(callback_query: CallbackQuery, callback_data: DebtA
     debtor_id = callback_data.debtor_id  # внутренний ID должника
     amount = callback_data.amount
 
-    # Получаем внутренний ID пользователя из базы для проверки
     pool = get_db_pool()
     async with pool.acquire() as connection:
+        # получаем внутренний ID текущего пользователя
         current_user_id = await connection.fetchval(
             "SELECT id FROM users WHERE telegram_id = $1",
             callback_query.from_user.id,
         )
 
-    # проверяем, что текущий пользователь является кредитором
-    if current_user_id != creditor_id:
-        await callback_query.answer("Эту кнопку может нажимать только тот, кто решил дать в долг!", show_alert=True)
-        return
+        # проверяем, что текущий пользователь является кредитором
+        if current_user_id != creditor_id:
+            await callback_query.answer("Эту кнопку может нажимать только тот, кто решил дать в долг!", show_alert=True)
+            return
 
-    # записываем долг в базу
-    async with pool.acquire() as connection:
+        # проверяем, что у кредитора достаточно средств
+        creditor_balance = await connection.fetchval(
+            """
+            SELECT points
+            FROM user_balance
+            WHERE telegram_group_id = $1
+              AND user_id = $2
+            """,
+            callback_query.message.chat.id,
+            creditor_id,
+        )
+
+        if creditor_balance is None or creditor_balance < amount:
+            await callback_query.answer("У тебя недостаточно средств для выдачи долга!", show_alert=True)
+            return
+
+        # записываем долг в базу
         await connection.execute(
             """
             INSERT INTO debts (telegram_group_id, debtor_id, creditor_id, debt_sum, status)
@@ -106,7 +121,8 @@ async def handle_debt_amount(callback_query: CallbackQuery, callback_data: DebtA
         )
 
         # снимаем сумму с баланса кредитора
-        await connection.execute("""
+        await connection.execute(
+            """
             UPDATE user_balance
             SET points = points - $1
             WHERE telegram_group_id = $2
@@ -117,8 +133,9 @@ async def handle_debt_amount(callback_query: CallbackQuery, callback_data: DebtA
             creditor_id,
         )
 
-        # зачисляем сумму на баланс должнику
-        await connection.execute("""
+        # зачисляем сумму на баланс должника
+        await connection.execute(
+            """
             UPDATE user_balance
             SET points = points + $1
             WHERE telegram_group_id = $2
