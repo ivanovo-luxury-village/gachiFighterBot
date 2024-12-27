@@ -1,5 +1,5 @@
 --liquibase formatted sql
---changeset naensamble:slap
+--changeset naensamble:debts
 CREATE TABLE debts (
     id BIGSERIAL PRIMARY KEY
     , telegram_group_id BIGINT NOT NULL
