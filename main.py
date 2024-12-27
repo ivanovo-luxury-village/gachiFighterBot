@@ -27,8 +27,15 @@ from bot.debts import (
     DebtRequestCallbackData, 
     DebtAmountCallbackData
     )
-#from bot.suck import *
-
+from bot.debts_return import (
+    return_debt,
+    handle_return_debt_user,
+    handle_return_debt_amount,
+    handle_return_debt_navigation,
+    ReturnDebtUserCallbackData,
+    ReturnDebtAmountCallbackData,
+    ReturnDebtNavigationCallbackData,
+)
 from utils.config import APP_HOST, APP_PORT, WEBHOOK_SECRET, WEBHOOK_URL
 from utils.logger import logger
 from utils.checks import check_expired_duels, check_long_in_progress_duels
@@ -43,8 +50,7 @@ commands = [
     BotCommand(command="fight_stats", description="Статистика боев"),
     BotCommand(command="global_fight_stats", description="Глобальная статистика боев"),
     BotCommand(command="get_semen", description="Взять в долг semen"),
-    #BotCommand(command="return_semen", description="Вернуть долг"),
-    #BotCommand(command="suck_me", description="Предложить минет"),
+    BotCommand(command="return_semen", description="Вернуть долг"),
 ]
 
 
@@ -60,13 +66,15 @@ async def set_commands():
     dp.message.register(show_global_fight_stats, Command(commands=["global_fight_stats"]))
     dp.message.register(release, Command(commands=["release"]))
     dp.message.register(request_debt, Command(commands=["get_semen"]))
-    #dp.message.register(_________, Command(commands=["return_semen"]))
-    #dp.message.register(_________, Command(commands=["suck_me"]))
+    dp.message.register(return_debt, Command(commands=["return_semen"]))  # Добавлена команда
     dp.callback_query.register(callback_accept_duel, DuelCallbackData.filter())
     dp.callback_query.register(weapon_chosen, WeaponCallbackData.filter())
     dp.callback_query.register(handle_debt_request, DebtRequestCallbackData.filter())
     dp.callback_query.register(handle_debt_amount, DebtAmountCallbackData.filter())
     dp.callback_query.register(handle_cancel_debt_request, lambda cb: cb.data == "cancel_debt_request")
+    dp.callback_query.register(handle_return_debt_user, ReturnDebtUserCallbackData.filter())
+    dp.callback_query.register(handle_return_debt_amount, ReturnDebtAmountCallbackData.filter())
+    dp.callback_query.register(handle_return_debt_navigation, ReturnDebtNavigationCallbackData.filter())
 
 
 async def start_background_tasks():
