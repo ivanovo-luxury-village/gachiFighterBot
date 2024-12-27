@@ -184,7 +184,7 @@ async def handle_return_debt_amount(callback_query: CallbackQuery, callback_data
         )
 
         if debtor_balance < debt_sum:
-            await callback_query.answer("У тебя недостаточно средств для закрытия этого долга!", show_alert=True)
+            await callback_query.answer("У тебя недостаточно ⚣semen⚣ для закрытия этого долга!", show_alert=True)
             return
 
         # Обновляем балансы и закрываем долг
@@ -221,7 +221,7 @@ async def handle_return_debt_amount(callback_query: CallbackQuery, callback_data
             callback_data.debt_id,
         )
 
-    await callback_query.message.edit_text(f"Долг на сумму {debt_sum} ⚣semen⚣ успешно закрыт!")
+    await callback_query.message.edit_text(f"Долг на сумму {debt_sum} мл. ⚣semen⚣ успешно закрыт!")
 
 async def handle_return_debt_navigation(callback_query: CallbackQuery, callback_data: ReturnDebtNavigationCallbackData):
     if callback_data.action == "back":
