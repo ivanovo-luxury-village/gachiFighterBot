@@ -106,7 +106,7 @@ async def show_global_fight_stats(message: types.Message):
         else:
             stats_message = "Глобальный рейтинг ⚣semen⚣:\n"
             for idx, stat in enumerate(stats, start=1):
-                stats_message += (f"{idx}) {stat['username']} - {stat['max_balance']} мл.\n")
+                stats_message += (f"{idx}) {stat['username']}: {stat['max_balance']} мл.\n")
             await message.reply(stats_message)
 
 async def list_debtors(message: types.Message):
