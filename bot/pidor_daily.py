@@ -50,6 +50,17 @@ async def choose_pidor_of_the_day(message: types.Message):
                 chat_id,
             )
 
+            # добавляем 100 очков за победу в розыгрыше
+            await connection.execute("""
+                UPDATE user_balance
+                SET points = points + 100
+                WHERE telegram_group_id = $1
+                    AND user_id = $2
+                """,
+                chat_id,
+                chosen_user["id"]
+            )
+
             scenario_id = await connection.fetchval(
                 "SELECT scenario_id FROM (SELECT DISTINCT scenario_id FROM messages WHERE message_type = $1) AS subquery ORDER BY random() LIMIT 1",
                 "INIT",
