@@ -139,10 +139,26 @@ async def check_last_finished_duel(chat_id: int) -> bool:
     if last_finished_duel_time:
         current_time = datetime.now(timezone.utc)
         time_since_last_duel = current_time - last_finished_duel_time
-        cooldown_time = timedelta(minutes=2)
+        cooldown_time = timedelta(minutes=3)
 
         if time_since_last_duel < cooldown_time:
             remaining_time = cooldown_time - time_since_last_duel
             return int(remaining_time.total_seconds())
 
     return None
+
+async def check_user_balance(chat_id: int, user_id: int) -> bool:
+    '''проверяет, что баланса достаточно для дуэли'''
+    pool = get_db_pool()
+    async with pool.acquire() as connection:
+        current_balance = await connection.fetchval(
+        """
+        SELECT points
+        FROM user_balance
+        WHERE telegram_group_id = $1
+            AND user_id = $2
+        """,
+        chat_id,
+        user_id
+        )
+    return current_balance <= 0

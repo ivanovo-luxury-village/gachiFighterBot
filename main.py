@@ -16,10 +16,26 @@ from bot.pidor_daily import choose_pidor_of_the_day
 from bot.create_duel import duel_command, DuelCallbackData
 from bot.accept_duel import callback_accept_duel
 from bot.weapons import WeaponCallbackData, weapon_chosen
-from bot.stats import show_fight_stats, show_global_fight_stats, rating
+from bot.stats import show_fight_stats, show_global_fight_stats, rating, list_debtors
 from bot.slap import slap_command
 from bot.release_notes import release
-
+from bot.debts import (
+    request_debt, 
+    handle_debt_request, 
+    handle_debt_amount, 
+    handle_cancel_debt_request, 
+    DebtRequestCallbackData, 
+    DebtAmountCallbackData
+    )
+from bot.debts_return import (
+    return_debt,
+    handle_return_debt_user,
+    handle_return_debt_amount,
+    handle_return_debt_navigation,
+    ReturnDebtUserCallbackData,
+    ReturnDebtAmountCallbackData,
+    ReturnDebtNavigationCallbackData,
+)
 from utils.config import APP_HOST, APP_PORT, WEBHOOK_SECRET, WEBHOOK_URL
 from utils.logger import logger
 from utils.checks import check_expired_duels, check_long_in_progress_duels
@@ -33,6 +49,9 @@ commands = [
     BotCommand(command="hit", description="Ударить членом по лбу"),
     BotCommand(command="fight_stats", description="Статистика боев"),
     BotCommand(command="global_fight_stats", description="Глобальная статистика боев"),
+    BotCommand(command="get_semen", description="Взять в долг semen"),
+    BotCommand(command="return_semen", description="Вернуть долг"),
+    BotCommand(command="all_debts", description="Список должников"),
 ]
 
 
@@ -47,8 +66,17 @@ async def set_commands():
     dp.message.register(show_fight_stats, Command(commands=["fight_stats"]))
     dp.message.register(show_global_fight_stats, Command(commands=["global_fight_stats"]))
     dp.message.register(release, Command(commands=["release"]))
+    dp.message.register(request_debt, Command(commands=["get_semen"]))
+    dp.message.register(return_debt, Command(commands=["return_semen"]))
+    dp.message.register(list_debtors, Command(commands=["all_debts"]))
     dp.callback_query.register(callback_accept_duel, DuelCallbackData.filter())
     dp.callback_query.register(weapon_chosen, WeaponCallbackData.filter())
+    dp.callback_query.register(handle_debt_request, DebtRequestCallbackData.filter())
+    dp.callback_query.register(handle_debt_amount, DebtAmountCallbackData.filter())
+    dp.callback_query.register(handle_cancel_debt_request, lambda cb: cb.data == "cancel_debt_request")
+    dp.callback_query.register(handle_return_debt_user, ReturnDebtUserCallbackData.filter())
+    dp.callback_query.register(handle_return_debt_amount, ReturnDebtAmountCallbackData.filter())
+    dp.callback_query.register(handle_return_debt_navigation, ReturnDebtNavigationCallbackData.filter())
 
 
 async def start_background_tasks():

@@ -54,13 +54,6 @@ async def start_duel(message: types.Message, duel_info, chat_id, winner):
                 loser_id = duel_info["challenger_id"]
 
             points = approx_points()
-
-            # если у проигравшего нет столько очков на балансе сколько он проиграл - обнуляем его баланс
-            loser_current_balance = await connection.fetchval(
-                "SELECT points FROM user_balance WHERE telegram_group_id = $1 AND user_id = $2",
-                chat_id, loser_id
-            )
-            loser_points = min(points, loser_current_balance)
             
             await connection.execute(
                 "UPDATE user_balance SET points = points + $1 WHERE telegram_group_id = $2 AND user_id = $3",
@@ -70,7 +63,7 @@ async def start_duel(message: types.Message, duel_info, chat_id, winner):
             )
             await connection.execute(
                 "UPDATE user_balance SET points = points - $1 WHERE telegram_group_id = $2 AND user_id = $3",
-                loser_points,
+                points,
                 chat_id,
                 loser_id,
             )
@@ -144,8 +137,8 @@ async def start_duel(message: types.Message, duel_info, chat_id, winner):
 
             # формируем сообщение о результате дуэли
             result_message = (
-                f"@{winner_name} - {winner_balance_after} (+{points}) мл.\n"
-                f"@{loser_name} - {loser_balance_after} (-{points}) мл.\n\n"
+                f"@{winner_name}: {winner_balance_after} (+{points}) мл.\n"
+                f"@{loser_name}: {loser_balance_after} (-{points}) мл.\n\n"
                 f"{fight_result_message}"
             )
 

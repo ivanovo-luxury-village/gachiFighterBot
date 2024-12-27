@@ -6,7 +6,7 @@ from aiogram.types import FSInputFile, InlineKeyboardButton, InlineKeyboardMarku
 from aiogram.filters.callback_data import CallbackData
 from database.db_pool import get_db_pool
 from utils.logger import logger
-from utils.checks import check_active_duels, check_last_finished_duel
+from utils.checks import check_active_duels, check_last_finished_duel, check_user_balance
 from bot.setup import bot
 
 
@@ -49,6 +49,13 @@ async def duel_command(message: types.Message):
             if remaining_seconds is not None:
                 await message.reply(
                     f"Нужен перерыв между ⚣борьбой⚣, попробуй через {remaining_seconds} секунд"
+                )
+                return
+            
+            # проверка достаточного количество semen
+            if await check_user_balance(chat_id, challenger_id):
+                await message.reply(
+                    "Ты нищий и не можешь бороться. Займи ⚣semen⚣ у других ⚣masters⚣ или заработай иным способом"
                 )
                 return
 
