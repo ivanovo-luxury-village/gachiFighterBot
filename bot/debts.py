@@ -19,8 +19,9 @@ async def request_debt(message: types.Message):
     # извлекаем внутренний ID пользователя из базы
     async with pool.acquire() as connection:
         debtor_id = await connection.fetchval(
-            "SELECT id FROM users WHERE telegram_id = $1",
+            "SELECT id FROM users WHERE telegram_id = $1 AND telegram_group_id = $2",
             message.from_user.id,
+            message.chat.id
         )
 
     if not debtor_id:
@@ -44,12 +45,14 @@ async def request_debt(message: types.Message):
 async def handle_debt_request(callback_query: CallbackQuery, callback_data: DebtRequestCallbackData):
     pool = get_db_pool()
     creditor_telegram_id = callback_query.from_user.id
+    telegram_group_id = callback_query.message.chat.id
 
     # извлекаем внутренние ID кредитора и должника
     async with pool.acquire() as connection:
         creditor_id = await connection.fetchval(
-            "SELECT id FROM users WHERE telegram_id = $1",
+            "SELECT id FROM users WHERE telegram_id = $1 AND telegram_group_id = $2",
             creditor_telegram_id,
+            telegram_group_id,
         )
         debtor_id = callback_data.user_id
 
