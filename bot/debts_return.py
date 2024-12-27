@@ -34,13 +34,15 @@ async def return_debt(message: types.Message):
             await message.reply("Ты не зарегистрирован. Используй команду /register, чтобы зарегистрироваться.")
             return
 
+        # получаем список кредиторов с их username
         debts = await connection.fetch(
             """
-            SELECT DISTINCT creditor_id
-            FROM debts
-            WHERE debtor_id = $1
-              AND telegram_group_id = $2
-              AND status = 'pending'
+            SELECT DISTINCT d.creditor_id, u.username AS creditor_username
+            FROM debts d
+            JOIN users u ON u.id = d.creditor_id
+            WHERE d.debtor_id = $1
+              AND d.telegram_group_id = $2
+              AND d.status = 'pending'
             """,
             debtor_id,
             message.chat.id,
@@ -54,7 +56,7 @@ async def return_debt(message: types.Message):
         buttons = [
             [
                 InlineKeyboardButton(
-                    text=f"{creditor['creditor_id']}",  # позже можно заменить на username
+                    text=f"{creditor['creditor_username']}",
                     callback_data=ReturnDebtUserCallbackData(
                         creditor_id=creditor["creditor_id"],
                         debtor_id=debtor_id
@@ -87,7 +89,7 @@ async def handle_return_debt_user(callback_query: CallbackQuery, callback_data: 
         )
 
         if current_user_id != callback_data.debtor_id:
-            await callback_query.answer("Только ты можешь закрыть свои долги!", show_alert=True)
+            await callback_query.answer("Ты не можешь закрыть не свой долг!", show_alert=True)
             return
 
         # получаем список долгов перед этим кредитором
@@ -123,7 +125,7 @@ async def handle_return_debt_user(callback_query: CallbackQuery, callback_data: 
             for debt in debts
         ]
         buttons.append([
-            InlineKeyboardButton(text="Назад", callback_data=ReturnDebtNavigationCallbackData(action="back").pack())
+            InlineKeyboardButton(text="Отмена", callback_data=ReturnDebtNavigationCallbackData(action="back").pack())
         ])
 
         keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
@@ -146,7 +148,7 @@ async def handle_return_debt_amount(callback_query: CallbackQuery, callback_data
         )
 
         if current_user_id != callback_data.debtor_id:
-            await callback_query.answer("Только ты можешь закрыть свои долги!", show_alert=True)
+            await callback_query.answer("Ты не можешь закрыть не свой долг!", show_alert=True)
             return
 
         # получаем информацию о долге
