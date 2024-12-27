@@ -16,7 +16,7 @@ from bot.pidor_daily import choose_pidor_of_the_day
 from bot.create_duel import duel_command, DuelCallbackData
 from bot.accept_duel import callback_accept_duel
 from bot.weapons import WeaponCallbackData, weapon_chosen
-from bot.stats import show_fight_stats, show_global_fight_stats, rating
+from bot.stats import show_fight_stats, show_global_fight_stats, rating, list_debtors
 from bot.slap import slap_command
 from bot.release_notes import release
 from bot.debts import (
@@ -51,6 +51,7 @@ commands = [
     BotCommand(command="global_fight_stats", description="Глобальная статистика боев"),
     BotCommand(command="get_semen", description="Взять в долг semen"),
     BotCommand(command="return_semen", description="Вернуть долг"),
+    BotCommand(command="all_debts", description="Список должников"),
 ]
 
 
@@ -66,7 +67,8 @@ async def set_commands():
     dp.message.register(show_global_fight_stats, Command(commands=["global_fight_stats"]))
     dp.message.register(release, Command(commands=["release"]))
     dp.message.register(request_debt, Command(commands=["get_semen"]))
-    dp.message.register(return_debt, Command(commands=["return_semen"]))  # Добавлена команда
+    dp.message.register(return_debt, Command(commands=["return_semen"]))
+    dp.message.register(list_debtors, Command(commands=["all_debts"]))
     dp.callback_query.register(callback_accept_duel, DuelCallbackData.filter())
     dp.callback_query.register(weapon_chosen, WeaponCallbackData.filter())
     dp.callback_query.register(handle_debt_request, DebtRequestCallbackData.filter())

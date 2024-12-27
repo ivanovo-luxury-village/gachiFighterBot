@@ -108,3 +108,32 @@ async def show_global_fight_stats(message: types.Message):
             for idx, stat in enumerate(stats, start=1):
                 stats_message += (f"{idx}) {stat['username']} - {stat['max_balance']} мл.\n")
             await message.reply(stats_message)
+
+async def list_debtors(message: types.Message):
+    pool = get_db_pool()
+
+    async with pool.acquire() as connection:
+        # получаем список должников и их общую сумму долгов
+        debtors = await connection.fetch(
+            """
+            SELECT u.username AS debtor_username, SUM(d.debt_sum) AS total_debt
+            FROM debts d
+            JOIN users u ON u.id = d.debtor_id
+            WHERE d.telegram_group_id = $1
+                AND d.status = 'pending'
+            GROUP BY u.username
+            ORDER BY total_debt DESC
+            """,
+            message.chat.id,
+        )
+
+        if not debtors:
+            await message.reply("В этом чате нет должников.")
+            return
+
+        # формируем список должников
+        debtor_list = "\n".join(
+            [f"@{debtor['debtor_username']}: {debtor['total_debt']} ⚣semen⚣" for debtor in debtors]
+        )
+
+        await message.reply(f"Список должников:\n\n{debtor_list}")

@@ -18,7 +18,7 @@ async def return_debt(message: types.Message):
     pool = get_db_pool()
 
     async with pool.acquire() as connection:
-        # Проверяем, есть ли у пользователя долги
+        # проверяем, есть ли у пользователя долги
         debtor_id = await connection.fetchval(
             """
             SELECT id
@@ -50,7 +50,7 @@ async def return_debt(message: types.Message):
             await message.reply("У тебя нет долгов, которые нужно вернуть.")
             return
 
-        # Формируем список кредиторов
+        # формируем список кредиторов
         buttons = [
             [
                 InlineKeyboardButton(
@@ -74,7 +74,7 @@ async def handle_return_debt_user(callback_query: CallbackQuery, callback_data: 
     pool = get_db_pool()
 
     async with pool.acquire() as connection:
-        # Проверяем, что запрос делает тот, кто должен вернуть долг
+        # проверяем, что запрос делает тот, кто должен вернуть долг
         current_user_id = await connection.fetchval(
             """
             SELECT id
@@ -90,7 +90,7 @@ async def handle_return_debt_user(callback_query: CallbackQuery, callback_data: 
             await callback_query.answer("Только ты можешь закрыть свои долги!", show_alert=True)
             return
 
-        # Получаем список долгов перед этим кредитором
+        # получаем список долгов перед этим кредитором
         debts = await connection.fetch(
             """
             SELECT id, debt_sum
@@ -109,7 +109,7 @@ async def handle_return_debt_user(callback_query: CallbackQuery, callback_data: 
             await callback_query.message.edit_text("Нет долгов перед этим кредитором.")
             return
 
-        # Формируем список долгов
+        # формируем список долгов
         buttons = [
             [
                 InlineKeyboardButton(
@@ -133,7 +133,7 @@ async def handle_return_debt_amount(callback_query: CallbackQuery, callback_data
     pool = get_db_pool()
 
     async with pool.acquire() as connection:
-        # Проверяем, что запрос делает тот, кто должен вернуть долг
+        # проверяем, что запрос делает тот, кто должен вернуть долг
         current_user_id = await connection.fetchval(
             """
             SELECT id
@@ -149,7 +149,7 @@ async def handle_return_debt_amount(callback_query: CallbackQuery, callback_data
             await callback_query.answer("Только ты можешь закрыть свои долги!", show_alert=True)
             return
 
-        # Получаем информацию о долге
+        # получаем информацию о долге
         debt = await connection.fetchrow(
             """
             SELECT debt_sum, creditor_id
@@ -171,7 +171,7 @@ async def handle_return_debt_amount(callback_query: CallbackQuery, callback_data
         debt_sum = debt["debt_sum"]
         creditor_id = debt["creditor_id"]
 
-        # Проверяем баланс должника
+        # проверяем баланс должника
         debtor_balance = await connection.fetchval(
             """
             SELECT points
@@ -187,7 +187,7 @@ async def handle_return_debt_amount(callback_query: CallbackQuery, callback_data
             await callback_query.answer("У тебя недостаточно ⚣semen⚣ для закрытия этого долга!", show_alert=True)
             return
 
-        # Обновляем балансы и закрываем долг
+        # обновляем балансы и закрываем долг
         await connection.execute(
             """
             UPDATE user_balance
