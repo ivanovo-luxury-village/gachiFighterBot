@@ -6,15 +6,26 @@ from database.db_pool import get_db_pool
 
 class DebtRequestCallbackData(CallbackData, prefix="debt_request"):
     action: str
-    user_id: int
+    user_id: int  # Используем внутренний ID из таблицы users
 
 class DebtAmountCallbackData(CallbackData, prefix="debt_amount"):
     amount: int
-    creditor_id: int
-    debtor_id: int
+    creditor_id: int  # Внутренний ID кредитора
+    debtor_id: int  # Внутренний ID должника
 
 async def request_debt(message: types.Message):
-    debtor_id = message.from_user.id
+    pool = get_db_pool()
+
+    # Извлекаем внутренний ID пользователя из базы
+    async with pool.acquire() as connection:
+        debtor_id = await connection.fetchval(
+            "SELECT id FROM users WHERE telegram_id = $1",
+            message.from_user.id,
+        )
+
+    if not debtor_id:
+        await message.reply("Ты не зарегистрирован. Используй команду /register, чтобы зарегистрироваться.")
+        return
 
     # Кнопка "Дать в долг"
     buttons = InlineKeyboardMarkup(
@@ -31,14 +42,26 @@ async def request_debt(message: types.Message):
     await message.answer("У меня нет очков. Дайте мне очки в долг!", reply_markup=buttons)
 
 async def handle_debt_request(callback_query: CallbackQuery, callback_data: DebtRequestCallbackData):
-    creditor_id = callback_query.from_user.id
-    debtor_id = callback_data.user_id
+    pool = get_db_pool()
+    creditor_telegram_id = callback_query.from_user.id
+
+    # Извлекаем внутренние ID кредитора и должника
+    async with pool.acquire() as connection:
+        creditor_id = await connection.fetchval(
+            "SELECT id FROM users WHERE telegram_id = $1",
+            creditor_telegram_id,
+        )
+        debtor_id = callback_data.user_id
+
+    if not creditor_id:
+        await callback_query.answer("Ты не зарегистрирован. Используй команду /register, чтобы зарегистрироваться.")
+        return
 
     if creditor_id == debtor_id:
         await callback_query.answer("Ты не можешь дать долг самому себе!", show_alert=True)
         return
 
-    # проверяем, что запрос идет только от нажавшего кнопку
+    # Кнопки выбора суммы долга
     buttons = InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text="100 очков", callback_data=DebtAmountCallbackData(amount=100, creditor_id=creditor_id, debtor_id=debtor_id).pack())],
