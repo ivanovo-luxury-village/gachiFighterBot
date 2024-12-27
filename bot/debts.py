@@ -74,15 +74,24 @@ async def handle_debt_request(callback_query: CallbackQuery, callback_data: Debt
     await callback_query.message.edit_text("Выберите сумму долга:", reply_markup=buttons)
 
 async def handle_debt_amount(callback_query: CallbackQuery, callback_data: DebtAmountCallbackData):
-    creditor_id = callback_data.creditor_id
-    debtor_id = callback_data.debtor_id
+    creditor_id = callback_data.creditor_id  # Внутренний ID кредитора
+    debtor_id = callback_data.debtor_id  # Внутренний ID должника
     amount = callback_data.amount
 
-    if callback_query.from_user.id != creditor_id:
+    # Получаем внутренний ID пользователя из базы для проверки
+    pool = get_db_pool()
+    async with pool.acquire() as connection:
+        current_user_id = await connection.fetchval(
+            "SELECT id FROM users WHERE telegram_id = $1",
+            callback_query.from_user.id,
+        )
+
+    # Проверяем, что текущий пользователь является кредитором
+    if current_user_id != creditor_id:
         await callback_query.answer("Эту кнопку может нажимать только кредитор!", show_alert=True)
         return
 
-    pool = get_db_pool()
+    # Записываем долг в базу
     async with pool.acquire() as connection:
         await connection.execute(
             """
