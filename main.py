@@ -19,7 +19,14 @@ from bot.weapons import WeaponCallbackData, weapon_chosen
 from bot.stats import show_fight_stats, show_global_fight_stats, rating
 from bot.slap import slap_command
 from bot.release_notes import release
-from bot.debts import request_debt, handle_debt_request, handle_debt_amount, DebtRequestCallbackData, DebtAmountCallbackData
+from bot.debts import (
+    request_debt, 
+    handle_debt_request, 
+    handle_debt_amount, 
+    handle_cancel_debt_request, 
+    DebtRequestCallbackData, 
+    DebtAmountCallbackData
+    )
 #from bot.suck import *
 
 from utils.config import APP_HOST, APP_PORT, WEBHOOK_SECRET, WEBHOOK_URL
@@ -59,6 +66,7 @@ async def set_commands():
     dp.callback_query.register(weapon_chosen, WeaponCallbackData.filter())
     dp.callback_query.register(handle_debt_request, DebtRequestCallbackData.filter())
     dp.callback_query.register(handle_debt_amount, DebtAmountCallbackData.filter())
+    dp.callback_query.register(handle_cancel_debt_request, lambda cb: cb.data == "cancel_debt_request")
 
 
 async def start_background_tasks():

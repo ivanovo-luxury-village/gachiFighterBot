@@ -68,6 +68,7 @@ async def handle_debt_request(callback_query: CallbackQuery, callback_data: Debt
             [InlineKeyboardButton(text="250", callback_data=DebtAmountCallbackData(amount=250, creditor_id=creditor_id, debtor_id=debtor_id).pack())],
             [InlineKeyboardButton(text="500", callback_data=DebtAmountCallbackData(amount=500, creditor_id=creditor_id, debtor_id=debtor_id).pack())],
             [InlineKeyboardButton(text="1000", callback_data=DebtAmountCallbackData(amount=1000, creditor_id=creditor_id, debtor_id=debtor_id).pack())],
+            [InlineKeyboardButton(text="Отмена", callback_data="cancel_debt_request")],  # кнопка отмены
         ]
     )
 
@@ -147,3 +148,7 @@ async def handle_debt_amount(callback_query: CallbackQuery, callback_data: DebtA
         )
 
     await callback_query.message.edit_text(f"Долг на сумму {amount} ⚣semen⚣ успешно создан!")
+
+async def handle_cancel_debt_request(callback_query: CallbackQuery):
+    await callback_query.message.edit_text("Запрос на выдачу ⚣semen⚣ был отменен.")
+    await callback_query.answer("Отмена выполнена.")
