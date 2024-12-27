@@ -1,3 +1,11 @@
+import asyncio
+from aiogram import types
+from aiogram.filters.callback_data import CallbackData
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
+from database.db_pool import get_db_pool
+from bot.setup import bot
+
+
 ### здесь будет функция дать в долг и попросить в долг : 
 ### функция попросить будет через кнопку  - потом меню 100 250 500 1000 
 ### выдача по кнопке    

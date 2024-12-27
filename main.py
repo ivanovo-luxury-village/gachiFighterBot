@@ -19,6 +19,8 @@ from bot.weapons import WeaponCallbackData, weapon_chosen
 from bot.stats import show_fight_stats, show_global_fight_stats, rating
 from bot.slap import slap_command
 from bot.release_notes import release
+from bot.debts import *
+from bot.suck import *
 
 from utils.config import APP_HOST, APP_PORT, WEBHOOK_SECRET, WEBHOOK_URL
 from utils.logger import logger
@@ -33,6 +35,9 @@ commands = [
     BotCommand(command="hit", description="Ударить членом по лбу"),
     BotCommand(command="fight_stats", description="Статистика боев"),
     BotCommand(command="global_fight_stats", description="Глобальная статистика боев"),
+    BotCommand(command="get_semen", description="Взять в долг semen"),
+    BotCommand(command="return_semen", description="Вернуть долг"),
+    BotCommand(command="suck_me", description="Предложить минет"),
 ]
 
 
@@ -47,6 +52,9 @@ async def set_commands():
     dp.message.register(show_fight_stats, Command(commands=["fight_stats"]))
     dp.message.register(show_global_fight_stats, Command(commands=["global_fight_stats"]))
     dp.message.register(release, Command(commands=["release"]))
+    dp.message.register(_________, Command(commands=["get_semen"]))
+    dp.message.register(_________, Command(commands=["return_semen"]))
+    dp.message.register(_________, Command(commands=["suck_me"]))
     dp.callback_query.register(callback_accept_duel, DuelCallbackData.filter())
     dp.callback_query.register(weapon_chosen, WeaponCallbackData.filter())
 
